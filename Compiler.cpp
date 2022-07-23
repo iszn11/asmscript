@@ -11,6 +11,7 @@ using Statements = std::vector<std::unique_ptr<Statement>>;
 
 [[nodiscard]] static Error CompileProcedure(const Statements& statements, MachineCode& code, std::unordered_map<size_t, std::string>& callTable);
 [[nodiscard]] static Error CompileStatement(const Statement& statement, MachineCode& code, std::unordered_map<size_t, std::string>& callTable);
+[[nodiscard]] static Error CompileCondition(const Condition& condition, MachineCode& code, bool& inverted);
 
 static void CompileStartProcedure(MachineCode& code, std::unordered_map<size_t, std::string>& callTable);
 
@@ -33,6 +34,11 @@ static void EmitSub(Register dest, int64_t value, MachineCode& code);
 static void EmitImul(Register dest, Register source, MachineCode& code);
 static void EmitImul(Register dest, Register source, int64_t value, MachineCode& code);
 static void EmitIdiv(Register divisor, MachineCode& code);
+static void EmitCmp(Register a, Register b, MachineCode& code, bool& inverted);
+static void EmitCmp(Register a, int64_t b, MachineCode& code, bool& inverted);
+static void EmitCmp(int64_t a, Register b, MachineCode& code, bool& inverted);
+static void WriteJump(const size_t from, const size_t to, MachineCode& code);
+static void WriteJump(size_t from, size_t to, Comparison comp, bool inverted, MachineCode& code);
 static void EmitReturn(MachineCode& code);
 static void EmitPush(Register reg, MachineCode& code);
 static void EmitPop(Register reg, MachineCode& code);
@@ -181,11 +187,61 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 	}
 	case StatementTag::Loop:
 	{
-		return Error{"Statement not implemented in the compiler.", statement.pos};
+		const auto& stmt = static_cast<const LoopStatement&>(statement);
+		const Condition& cond = *stmt.condition;
+
+		const size_t startPtr = code.length();
+		bool inverted = true;
+		TRY(CompileCondition(cond, code, inverted));
+		const size_t jumpPtr = code.length();
+		EmitNop(6, code);
+
+		for (const auto& innerStatement : stmt.statements)
+		{
+			TRY(CompileStatement(*innerStatement, code, callTable));
+		}
+		const size_t jumpBackPtr = code.length();
+		EmitNop(5, code);
+		const size_t loopEndPtr = code.length();
+
+		WriteJump(jumpPtr, loopEndPtr, cond.comp, inverted, code);
+		WriteJump(jumpBackPtr, startPtr, code);
+		return Error::None;
 	}
 	case StatementTag::Branch:
 	{
-		return Error{"Statement not implemented in the compiler.", statement.pos};
+		const auto& stmt = static_cast<const BranchStatement&>(statement);
+		const Condition& cond = *stmt.condition;
+
+		bool inverted = true;
+		TRY(CompileCondition(cond, code, inverted));
+		const size_t jumpPtr = code.length();
+		EmitNop(6, code);
+
+		size_t jumpPastElsePtr;
+		for (const auto& innerStatement : stmt.statements)
+		{
+			TRY(CompileStatement(*innerStatement, code, callTable));
+			if (stmt.elseBlock.size() > 0)
+			{
+				jumpPastElsePtr = code.length();
+				EmitNop(5, code);
+			}
+		}
+		const size_t ifBlockEndPtr = code.length();
+		if (stmt.elseBlock.size() > 0)
+		{
+			for (const auto& innerStatement : stmt.elseBlock)
+			{
+				TRY(CompileStatement(*innerStatement, code, callTable));
+			}
+			const size_t elseBlockEndPtr = code.length();
+
+			WriteJump(jumpPastElsePtr, elseBlockEndPtr, code);
+		}
+
+		WriteJump(jumpPtr, ifBlockEndPtr, cond.comp, inverted, code);
+		return Error::None;
 	}
 	case StatementTag::Break:
 	{
@@ -263,6 +319,43 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 	default:
 		return Error{"Statement not implemented in the compiler.", statement.pos};
 	}
+}
+
+[[nodiscard]] static Error CompileCondition(const Condition& condition, MachineCode& code, bool& inverted)
+{
+	const OperandTag atag = condition.a->tag;
+	const OperandTag btag = condition.b->tag;
+
+	if (atag == OperandTag::Register && btag == OperandTag::Register)
+	{
+		EmitCmp(
+			static_cast<const RegisterOperand&>(*condition.a).reg,
+			static_cast<const RegisterOperand&>(*condition.b).reg,
+			code, inverted
+		);
+	}
+	else if (atag == OperandTag::Register && btag == OperandTag::Immediate)
+	{
+		EmitCmp(
+			static_cast<const RegisterOperand&>(*condition.a).reg,
+			static_cast<const ImmediateOperand&>(*condition.b).value,
+			code, inverted
+		);
+	}
+	else if (atag == OperandTag::Immediate && btag == OperandTag::Register)
+	{
+		EmitCmp(
+			static_cast<const ImmediateOperand&>(*condition.a).value,
+			static_cast<const RegisterOperand&>(*condition.b).reg,
+			code, inverted
+		);
+	}
+	else
+	{
+		return Error{"Unsupported comparison operand type combination", condition.pos};
+	}
+
+	return Error::None;
 }
 
 static void CompileStartProcedure(MachineCode& code, std::unordered_map<size_t, std::string>& callTable)
@@ -487,7 +580,7 @@ static void EmitImul(Register dest, Register source, int64_t value, MachineCode&
 	}
 }
 
-static void EmitIdiv(Register divisor, MachineCode& code)
+static void EmitIdiv(const Register divisor, MachineCode& code)
 {
 	const uint8_t divisorval = static_cast<uint8_t>(divisor);
 	EmitRexW(false, divisorval & 0x08, code);
@@ -495,12 +588,88 @@ static void EmitIdiv(Register divisor, MachineCode& code)
 	EmitModRM(0b11, 7, divisorval & 0x07, code);
 }
 
+static void EmitCmp(const Register a, const Register b, MachineCode& code, bool& inverted)
+{
+	const uint8_t aval = static_cast<uint8_t>(a);
+	const uint8_t bval = static_cast<uint8_t>(b);
+
+	EmitRexW(bval & 0x08, aval & 0x08, code);
+	code.push_back(0x39);
+	EmitModRM(0b11, bval & 0x07, aval & 0x07, code);
+
+	(void)inverted;
+}
+
+static void EmitCmp(const Register a, const int64_t b, MachineCode& code, bool& inverted)
+{
+	const uint8_t aval = static_cast<uint8_t>(a);
+
+	if (b >= INT64_C(-128) && b <= INT64_C(127))
+	{
+		EmitRexW(false, aval & 0x08, code);
+		code.push_back(0x83);
+		EmitModRM(0b11, 7, aval & 0x07, code);
+		EmitImm8(static_cast<int8_t>(b), code);
+	}
+	else if (b >= INT64_C(-2147483648) && b <= INT64_C(2147483647))
+	{
+		EmitRexW(false, aval & 0x08, code);
+		code.push_back(0x81);
+		EmitModRM(0b11, 7, aval & 0x07, code);
+		EmitImm32(static_cast<int32_t>(b), code);
+	}
+	else
+	{
+		Register tmp = a != Register::rax ? Register::rax : Register::rbx;
+		EmitPush(tmp, code);
+		EmitMov(tmp, b, code);
+		EmitCmp(a, tmp, code, inverted);
+		EmitPop(tmp, code);
+	}
+}
+
+static void EmitCmp(const int64_t a, const Register b, MachineCode& code, bool& inverted)
+{
+	inverted = !inverted;
+	EmitCmp(b, a, code, inverted);
+}
+
+static void WriteJump(const size_t from, const size_t to, MachineCode& code)
+{
+	int32_t diff = static_cast<int32_t>(to) - (static_cast<int32_t>(from) + 5);
+	code[from] = 0xE9;
+	memcpy(&code.data()[from + 1], &diff, 4);
+}
+
+static void WriteJump(const size_t from, const size_t to, Comparison comp, const bool inverted, MachineCode& code)
+{
+	if (inverted)
+	{
+		switch (comp)
+		{
+			case Comparison::LessThan: comp = Comparison::GreaterEquals; break;
+			case Comparison::LessEquals: comp = Comparison::GreaterThan; break;
+			case Comparison::GreaterThan: comp = Comparison::LessEquals; break;
+			case Comparison::GreaterEquals: comp = Comparison::LessThan; break;
+			case Comparison::Equals: comp = Comparison::NotEquals; break;
+			case Comparison::NotEquals: comp = Comparison::Equals; break;
+		}
+	}
+
+	int32_t diff = static_cast<int32_t>(to) - (static_cast<int32_t>(from) + 6);
+	const uint8_t opcode = 0x10 + static_cast<uint8_t>(comp);
+
+	code[from] = 0x0F;
+	code[from + 1] = opcode;
+	memcpy(&code.data()[from + 2], &diff, 4);
+}
+
 static void EmitReturn(MachineCode& code)
 {
 	code.push_back(0xC3);
 }
 
-static void EmitPush(Register reg, MachineCode& code)
+static void EmitPush(const Register reg, MachineCode& code)
 {
 	const uint8_t regval = static_cast<uint8_t>(reg);
 
@@ -508,7 +677,7 @@ static void EmitPush(Register reg, MachineCode& code)
 	code.push_back(0x50 | (regval & 0x07));
 }
 
-static void EmitPop(Register reg, MachineCode& code)
+static void EmitPop(const Register reg, MachineCode& code)
 {
 	const uint8_t regval = static_cast<uint8_t>(reg);
 
@@ -516,12 +685,12 @@ static void EmitPop(Register reg, MachineCode& code)
 	code.push_back(0x58 | (regval & 0x07));
 }
 
-static void EmitNop(size_t length, MachineCode& code)
+static void EmitNop(const size_t length, MachineCode& code)
 {
 	for (size_t i = 0; i < length; ++i) code.push_back(0x90);
 }
 
-static void EmitCall(Register reg, MachineCode& code)
+static void EmitCall(const Register reg, MachineCode& code)
 {
 	const uint8_t regval = static_cast<uint8_t>(reg);
 
@@ -530,7 +699,7 @@ static void EmitCall(Register reg, MachineCode& code)
 	EmitModRM(0b11, 2, regval & 0x07, code);
 }
 
-static void WriteCall(size_t from, size_t to, MachineCode& code)
+static void WriteCall(const size_t from, const size_t to, MachineCode& code)
 {
 	int32_t diff = static_cast<int32_t>(to) - (static_cast<int32_t>(from) + 5);
 

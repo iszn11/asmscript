@@ -30,10 +30,29 @@
 //	rax -= -1234605616436508552;
 //}
 
+proc gcd {
+	loop (rax != rbx) {
+		branch (rax > rbx) {
+			rax -= rbx;
+		} else {
+			rbx -= rax;
+		}
+	}
+}
+
 proc main {
 	rax = 10;
-	rbx = 5;
-	rax += 2;
-	rax *= rbx;
+	rbx = 8;
+	gcd;
+	<< rax;
+
+	rax = 24;
+	rbx = 16;
+	gcd;
+	<< rax;
+
+	rax = 19;
+	rbx = 23;
+	gcd;
 	<< rax;
 }

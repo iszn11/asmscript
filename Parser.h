@@ -54,13 +54,13 @@ enum class Operation {
 	Mod,
 };
 
-enum class Comparison {
-	LessThan,
-	LessEquals,
-	GreaterThan,
-	GreaterEquals,
-	Equals,
-	NotEquals,
+enum class Comparison : uint8_t {
+	LessThan = 0x7C,
+	LessEquals = 0x7E,
+	GreaterThan = 0x7F,
+	GreaterEquals = 0x7D,
+	Equals = 0x74,
+	NotEquals = 0x75,
 };
 
 struct Operand {

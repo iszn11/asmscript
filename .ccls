@@ -1,0 +1,8 @@
+clang
+%h -x
+%h c++-header
+%c -std=c11
+%cpp -std=c++17
+-pedantic
+-Wall
+-Wextra

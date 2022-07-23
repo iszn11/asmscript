@@ -71,11 +71,11 @@ constexpr std::string_view KEYWORDS[KEYWORD_COUNT] = {
 	"break"sv,
 	"continue"sv,
 	"else"sv,
-	"fn"sv,
 	"if"sv,
 	"loop"sv,
 	"macro"sv,
 	"pop"sv,
+	"proc"sv,
 	"push"sv,
 	"return"sv,
 	"val"sv,
@@ -152,17 +152,17 @@ static bool IsDigit(char c);
 			const uint16_t val = (codePtr[0] << 8) | codePtr[1];
 			switch (val)
 			{
-				case 0x4361: tokens.emplace_back(std::make_unique<Token>(TokenTag::PlusEquals, codePtr.pos));    codePtr += 2; continue;
-				case 0x4561: tokens.emplace_back(std::make_unique<Token>(TokenTag::MinusEquals, codePtr.pos));   codePtr += 2; continue;
-				case 0x4261: tokens.emplace_back(std::make_unique<Token>(TokenTag::StarEquals, codePtr.pos));    codePtr += 2; continue;
-				case 0x4761: tokens.emplace_back(std::make_unique<Token>(TokenTag::SlashEquals, codePtr.pos));   codePtr += 2; continue;
-				case 0x3761: tokens.emplace_back(std::make_unique<Token>(TokenTag::PercentEquals, codePtr.pos)); codePtr += 2; continue;
+				case 0x2B3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PlusEquals, codePtr.pos));    codePtr += 2; continue;
+				case 0x2D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::MinusEquals, codePtr.pos));   codePtr += 2; continue;
+				case 0x2A3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::StarEquals, codePtr.pos));    codePtr += 2; continue;
+				case 0x2F3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::SlashEquals, codePtr.pos));   codePtr += 2; continue;
+				case 0x253D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PercentEquals, codePtr.pos)); codePtr += 2; continue;
 				case 0x3C3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::LessEquals, codePtr.pos));    codePtr += 2; continue;
 				case 0x3E3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::GreaterEquals, codePtr.pos)); codePtr += 2; continue;
 				case 0x3D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::EqualsEquals, codePtr.pos));  codePtr += 2; continue;
 				case 0x213D: tokens.emplace_back(std::make_unique<Token>(TokenTag::NotEquals, codePtr.pos));     codePtr += 2; continue;
-				case 0x6060: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shl, codePtr.pos));           codePtr += 2; continue;
-				case 0x6262: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shr, codePtr.pos));           codePtr += 2; continue;
+				case 0x3C3C: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shl, codePtr.pos));           codePtr += 2; continue;
+				case 0x3E3E: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shr, codePtr.pos));           codePtr += 2; continue;
 			}
 		}
 
@@ -174,8 +174,8 @@ static bool IsDigit(char c);
 			case ']': tokens.emplace_back(std::make_unique<Token>(TokenTag::BracketClose, codePtr.pos)); codePtr += 1; continue;
 			case '(': tokens.emplace_back(std::make_unique<Token>(TokenTag::ParenOpen, codePtr.pos));    codePtr += 1; continue;
 			case ')': tokens.emplace_back(std::make_unique<Token>(TokenTag::ParenClose, codePtr.pos));   codePtr += 1; continue;
-			case '{': tokens.emplace_back(std::make_unique<Token>(TokenTag::BracketOpen, codePtr.pos));  codePtr += 1; continue;
-			case '}': tokens.emplace_back(std::make_unique<Token>(TokenTag::BracketClose, codePtr.pos)); codePtr += 1; continue;
+			case '{': tokens.emplace_back(std::make_unique<Token>(TokenTag::BraceOpen, codePtr.pos));    codePtr += 1; continue;
+			case '}': tokens.emplace_back(std::make_unique<Token>(TokenTag::BraceClose, codePtr.pos));   codePtr += 1; continue;
 			case '+': tokens.emplace_back(std::make_unique<Token>(TokenTag::Plus, codePtr.pos));         codePtr += 1; continue;
 			case '-': tokens.emplace_back(std::make_unique<Token>(TokenTag::Minus, codePtr.pos));        codePtr += 1; continue;
 			case '*': tokens.emplace_back(std::make_unique<Token>(TokenTag::Star, codePtr.pos));         codePtr += 1; continue;

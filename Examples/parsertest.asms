@@ -1,0 +1,63 @@
+proc test {
+	rax = rbx;
+	rcx = rdx if rsi < rdi;
+	rbp = r8 if r9 <= r10;
+	r11 = r12 if r13 > r14;
+	r15 = rax if rax >= 42;
+	rax = rbx if 42 != rax;
+	rax = rbx if 10 == 42;
+
+	rax = 42;
+	rax = 42 if rbx > 10;
+
+	rax += rbx;
+	rax += 42;
+	rax += rcx if rbx > 10;
+
+	rax -= 10;
+	rax *= 20;
+	rax /= 30;
+	rax %= 40;
+
+	rax = rbx + rcx;
+	rax = rbx - rcx if rdx > 40;
+	rax = rbx * 10;
+	rax = 10 / rdx;
+	rax = 10 % rdx;
+
+	loop {
+		break;
+	}
+
+	loop (rax == 0) {
+		continue;
+		continue if rax > 10;
+		break if 10 < r15;
+	}
+
+	branch (10 != rdx) {
+		<< rax;
+	} else {
+		<< rbx if rcx > 10;
+	}
+
+	branch (32 > 16) {
+		<< rcx;
+		<< 20;
+	}
+
+	other_procedure;
+
+	return if 10 == 20;
+	return;
+
+	// dead code
+
+	rax = 10;
+}
+
+proc other_procedure {
+	rax = 10;
+}
+
+proc empty_procedure {}

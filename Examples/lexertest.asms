@@ -1,4 +1,4 @@
-fn gcd {
+proc gcd {
 	loop (rax != rbx) {
 		branch (rax > rbx) {
 			rax -= rbx;
@@ -8,14 +8,14 @@ fn gcd {
 	}
 }
 
-fn main {
+proc main {
 	rax = 12;
 	rbx = 18;
 	gcd;
 	<< rax;
 }
 
-fn prime_test {
+proc prime_test {
 	rbx = 2;
 	loop {
 		rcx = rbx * rbx;

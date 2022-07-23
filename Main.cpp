@@ -1,11 +1,18 @@
 #include "Common.h"
 #include "Lexer.h"
+#include "Parser.h"
 
 #include <cstdio>
 #include <iostream>
 
 static int RunFile(const char* filepath);
 static void PrintLexResults(std::string_view filePrefix, const std::vector<std::unique_ptr<Token>>& tokens);
+static void PrintParseResults(std::string_view filePrefix, const std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>>& procedures);
+static void PrintStatements(std::string_view filePrefix, const std::vector<std::unique_ptr<Statement>>& statements, size_t level = 0);
+static void PrintRegister(Register reg);
+static void PrintOperation(Operation op);
+static void PrintCondition(const Condition& condition);
+static void PrintOperand(const Operand& operand);
 
 int main(int argc, char* argv[])
 {
@@ -39,6 +46,17 @@ static int RunFile(const char* const filepath)
 	}
 
 	PrintLexResults(filepath, tokens);
+
+	std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>> procedures;
+	error = Parse(tokens, procedures);
+	if (error)
+	{
+		std::cerr << filepath << ":" << error.pos.line << ":" << error.pos.col << ": Parser error: " << error.message << '\n';
+		return 1;
+	}
+
+	PrintParseResults(filepath, procedures);
+
 	return 0;
 }
 
@@ -85,11 +103,11 @@ static void PrintLexResults(const std::string_view filePrefix, const std::vector
 			case TokenTag::KeyBreak: std::cout << "KeyBreak"; break;
 			case TokenTag::KeyContinue: std::cout << "KeyContinue"; break;
 			case TokenTag::KeyElse: std::cout << "KeyElse"; break;
-			case TokenTag::KeyFn: std::cout << "KeyFn"; break;
 			case TokenTag::KeyIf: std::cout << "KeyIf"; break;
 			case TokenTag::KeyLoop: std::cout << "KeyLoop"; break;
 			case TokenTag::KeyMacro: std::cout << "KeyMacro"; break;
 			case TokenTag::KeyPop: std::cout << "KeyPop"; break;
+			case TokenTag::KeyProc: std::cout << "KeyProc"; break;
 			case TokenTag::KeyPush: std::cout << "KeyPush"; break;
 			case TokenTag::KeyReturn: std::cout << "KeyReturn"; break;
 			case TokenTag::KeyVal: std::cout << "KeyVal"; break;
@@ -129,5 +147,214 @@ static void PrintLexResults(const std::string_view filePrefix, const std::vector
 		}
 
 		std::cout << '\n';
+	}
+}
+
+static void PrintParseResults(const std::string_view filePrefix, const std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>>& procedures)
+{
+	for (const auto& [name, statements] : procedures)
+	{
+		std::cout << "PROCEDURE " << name << "\n\n";
+
+		PrintStatements(filePrefix, statements);
+
+		std::cout << '\n';
+	}
+}
+
+static void PrintStatements(const std::string_view filePrefix, const std::vector<std::unique_ptr<Statement>>& statements, const size_t level)
+{
+	for (const auto& statement : statements)
+	{
+		for (size_t i = 0; i < level; ++i) std::cout << '\t';
+
+		switch (statement->tag)
+		{
+		case StatementTag::Assignment:
+		{
+			auto stmt = static_cast<AssignmentStatement*>(statement.get());
+			std::cout << "Assignment ";
+			PrintRegister(stmt->dest);
+			std::cout << " = ";
+			PrintOperand(*stmt->source);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Shorthand:
+		{
+			auto stmt = static_cast<ShorthandStatement*>(statement.get());
+			std::cout << "Shorthand ";
+			PrintRegister(stmt->dest);
+			std::cout << ' ';
+			PrintOperation(stmt->op);
+			std::cout << "= ";
+			PrintOperand(*stmt->source);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Longhand:
+		{
+			auto stmt = static_cast<LonghandStatement*>(statement.get());
+			std::cout << "Longhand ";
+			PrintRegister(stmt->dest);
+			std::cout << " = ";
+			PrintOperand(*stmt->sourceA);
+			std::cout << ' ';
+			PrintOperation(stmt->op);
+			std::cout << ' ';
+			PrintOperand(*stmt->sourceB);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Loop:
+		{
+			auto stmt = static_cast<LoopStatement*>(statement.get());
+			std::cout << "Loop";
+			if (stmt->condition.has_value())
+			{
+				std::cout << " (";
+				PrintCondition(*stmt->condition);
+				std::cout << ")";
+			}
+			std::cout << '\n';
+			PrintStatements(filePrefix, stmt->statements, level + 1);
+			continue;
+		}
+		case StatementTag::Branch:
+		{
+			auto stmt = static_cast<BranchStatement*>(statement.get());
+			std::cout << "Branch (";
+			PrintCondition(*stmt->condition);
+			std::cout << ")\n";
+			PrintStatements(filePrefix, stmt->statements, level + 1);
+			std::cout << "Else\n";
+			PrintStatements(filePrefix, stmt->elseBlock, level + 1);
+			continue;
+		}
+		case StatementTag::Break:
+		{
+			std::cout << "Break";
+			if (statement->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*statement->condition);
+			}
+			break;
+		}
+		case StatementTag::Continue:
+		{
+			std::cout << "Continue";
+			if (statement->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*statement->condition);
+			}
+			break;
+		}
+		case StatementTag::Return:
+		{
+			std::cout << "Return";
+			if (statement->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*statement->condition);
+			}
+			break;
+		}
+		case StatementTag::Call:
+		{
+			auto stmt = static_cast<CallStatement*>(statement.get());
+			std::cout << "Call " << stmt->name;
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Stdout:
+		{
+			auto stmt = static_cast<StdoutStatement*>(statement.get());
+			std::cout << "Stdout ";
+			PrintOperand(*stmt->source);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		}
+		std::cout << '\n';
+	}
+}
+
+static void PrintRegister(const Register reg)
+{
+	switch (reg)
+	{
+		case Register::rax: std::cout << "rax"; break;
+		case Register::rbx: std::cout << "rbx"; break;
+		case Register::rcx: std::cout << "rcx"; break;
+		case Register::rdx: std::cout << "rdx"; break;
+		case Register::rsi: std::cout << "rsi"; break;
+		case Register::rdi: std::cout << "rdi"; break;
+		case Register::rbp: std::cout << "rbp"; break;
+		case Register::r8: std::cout << "r8"; break;
+		case Register::r9: std::cout << "r9"; break;
+		case Register::r10: std::cout << "r10"; break;
+		case Register::r11: std::cout << "r11"; break;
+		case Register::r12: std::cout << "r12"; break;
+		case Register::r13: std::cout << "r13"; break;
+		case Register::r14: std::cout << "r14"; break;
+		case Register::r15: std::cout << "r15"; break;
+	}
+}
+
+static void PrintOperation(const Operation op)
+{
+	switch (op)
+	{
+		case Operation::Add: std::cout << '+'; break;
+		case Operation::Sub: std::cout << '-'; break;
+		case Operation::Mul: std::cout << '*'; break;
+		case Operation::Div: std::cout << '/'; break;
+		case Operation::Mod: std::cout << '%'; break;
+	}
+}
+
+static void PrintCondition(const Condition& condition)
+{
+	PrintOperand(*condition.a);
+	switch (condition.comp)
+	{
+		case Comparison::LessThan: std::cout << " < "; break;
+		case Comparison::LessEquals: std::cout << " <= "; break;
+		case Comparison::GreaterThan: std::cout << " > "; break;
+		case Comparison::GreaterEquals: std::cout << " >= "; break;
+		case Comparison::Equals: std::cout << " == "; break;
+		case Comparison::NotEquals: std::cout << " != "; break;
+	}
+	PrintOperand(*condition.b);
+}
+
+static void PrintOperand(const Operand& operand)
+{
+	switch (operand.tag)
+	{
+		case OperandTag::Register: PrintRegister(static_cast<const RegisterOperand&>(operand).reg); break;
+		case OperandTag::Immediate: std::cout << static_cast<const ImmediateOperand&>(operand).value; break;
 	}
 }

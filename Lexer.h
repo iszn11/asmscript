@@ -48,11 +48,11 @@ enum class TokenTag {
 	KeyBreak,
 	KeyContinue,
 	KeyElse,
-	KeyFn,
 	KeyIf,
 	KeyLoop,
 	KeyMacro,
 	KeyPop,
+	KeyProc,
 	KeyPush,
 	KeyReturn,
 	KeyVal,
@@ -104,10 +104,8 @@ struct Token {
 	CodePos pos;
 
 	Token(const TokenTag tag, const CodePos pos) : tag{tag}, pos{pos} {}
-	virtual ~Token() = 0;
+	virtual ~Token() = default;
 };
-
-inline Token::~Token() {}
 
 struct NumberToken : public Token {
 	int64_t value;

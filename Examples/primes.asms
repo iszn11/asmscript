@@ -1,0 +1,22 @@
+proc prime_test {
+	rbx = 2;
+	loop {
+		rcx = rbx * rbx;
+		break if rcx > rax;
+
+		rdx = rax % rax;
+		return if rdx == 0;
+
+		rbx += 1;
+	}
+
+	<< rax;
+}
+
+proc main {
+	rax = 2;
+	loop (rax <= 1000) {
+		prime_test;
+		rax += 1;
+	}
+}

@@ -53,7 +53,7 @@ static int RunFile(const char* const filepath)
 		return 1;
 	}
 
-	PrintLexResults(filepath, tokens);
+	//PrintLexResults(filepath, tokens);
 
 	std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>> procedures;
 	error = Parse(tokens, procedures);
@@ -63,7 +63,7 @@ static int RunFile(const char* const filepath)
 		return 1;
 	}
 
-	PrintParseResults(filepath, procedures);
+	//PrintParseResults(filepath, procedures);
 
 	std::basic_string<unsigned char> machineCode;
 	size_t entry;
@@ -74,8 +74,13 @@ static int RunFile(const char* const filepath)
 		return 1;
 	}
 
-	PrintCompileResults(machineCode, entry);
+	//PrintCompileResults(machineCode, entry);
 	ExecuteCompileResults(machineCode, entry);
+
+	(void)PrintLexResults;
+	(void)PrintParseResults;
+	(void)PrintCompileResults;
+	(void)ExecuteCompileResults;
 
 	return 0;
 }
@@ -186,10 +191,10 @@ static void PrintCompileResults(const std::basic_string<unsigned char>& machineC
 {
 	std::cout << "Entry at " << entry << '\n';
 
-	std::cout << std::hex << std::setfill('0') << std::setw(2);
+	std::cout << std::hex;
 	for (const auto c : machineCode)
 	{
-		std::cout << static_cast<int>(c) << " ";
+		std::cout << std::setfill('0') << std::setw(2) << static_cast<int>(c) << " ";
 	}
 	std::cout.copyfmt(std::ios(NULL));
 
@@ -209,11 +214,9 @@ static void ExecuteCompileResults(const std::basic_string<unsigned char>& machin
 	mprotect(mem, len, PROT_EXEC);
 
 	char* entryPtr = static_cast<char*>(mem) + entry;
-	int64_t (*main)(int64_t a, int64_t b);
+	void (*main)();
 	memcpy(&main, &entryPtr, 8);
-	const int64_t res = main(4, 7);
-
-	std::cout << "Res: " << res << '\n';
+	main();
 
 	munmap(mem, len);
 }

@@ -31,7 +31,9 @@
 //}
 
 proc main {
-	rax = rdi;
-	rax += 20;
-	rax += rsi;
+	rax = 10;
+	rbx = 5;
+	rax += 2;
+	rax *= rbx;
+	<< rax;
 }

@@ -82,7 +82,7 @@ constexpr std::string_view KEYWORDS[KEYWORD_COUNT] = {
 	"var"sv,
 };
 
-static bool success;
+static bool lexerSuccess;
 
 static void SkipWhitespace(CodePtr& ptr);
 static bool IsIdentifierStart(char c);
@@ -113,7 +113,7 @@ static bool IsDigit(char c);
 		// comment
 
 		TRY(LexComment(codePtr));
-		if (success)
+		if (lexerSuccess)
 		{
 			continue;
 		}
@@ -121,7 +121,7 @@ static bool IsDigit(char c);
 		// identifier or keyword
 
 		TRY(LexIdentifierOrKeyword(codePtr, token));
-		if (success)
+		if (lexerSuccess)
 		{
 			tokens.emplace_back(std::move(token));
 			continue;
@@ -130,7 +130,7 @@ static bool IsDigit(char c);
 		// number
 
 		TRY(LexNumber(codePtr, token));
-		if (success)
+		if (lexerSuccess)
 		{
 			tokens.emplace_back(std::move(token));
 			continue;
@@ -139,7 +139,7 @@ static bool IsDigit(char c);
 		// string
 
 		TRY(LexString(codePtr, token));
-		if (success)
+		if (lexerSuccess)
 		{
 			tokens.emplace_back(std::move(token));
 			continue;
@@ -235,7 +235,7 @@ static bool IsDigit(const char c)
 {
 	if (ptr[0] != '/' || ptr[1] != '/')
 	{
-		success = false;
+		lexerSuccess = false;
 		return Error::None;
 	}
 
@@ -248,7 +248,7 @@ static bool IsDigit(const char c)
 		case '\0':
 		case '\n':
 			ptr += 1;
-			success = true;
+			lexerSuccess = true;
 			return Error::None;
 		default:
 			ptr += 1;
@@ -261,7 +261,7 @@ static bool IsDigit(const char c)
 {
 	if (!IsIdentifierStart(ptr[0]))
 	{
-		success = false;
+		lexerSuccess = false;
 		return Error::None;
 	}
 
@@ -284,14 +284,14 @@ static bool IsDigit(const char c)
 	{
 		if (text != KEYWORDS[i]) continue;
 
-		success = true;
+		lexerSuccess = true;
 		out = std::make_unique<Token>(static_cast<TokenTag>(i), pos);
 		return Error::None;
 	}
 
 	// identifier
 
-	success = true;
+	lexerSuccess = true;
 	out = std::make_unique<IdentifierToken>(std::string{text}, pos);
 	return Error::None;
 }
@@ -300,7 +300,7 @@ static bool IsDigit(const char c)
 {
 	if (!IsDigit(ptr[0]))
 	{
-		success = false;
+		lexerSuccess = false;
 		return Error::None;
 	}
 
@@ -316,7 +316,7 @@ static bool IsDigit(const char c)
 		ptr += 1;
 	}
 
-	success = true;
+	lexerSuccess = true;
 	out = std::make_unique<NumberToken>(atoll(start), pos);
 	return Error::None;
 }
@@ -325,7 +325,7 @@ static bool IsDigit(const char c)
 {
 	if (ptr[0] != '"')
 	{
-		success = false;
+		lexerSuccess = false;
 		return Error::None;
 	}
 
@@ -345,7 +345,7 @@ static bool IsDigit(const char c)
 			ptr += 1;
 
 			out = std::make_unique<StringToken>(std::move(value), pos);
-			success = true;
+			lexerSuccess = true;
 			return Error::None;
 		case '\\':
 			ptr += 1;

@@ -1,0 +1,5 @@
+#include "Main.cpp"
+#include "Common.cpp"
+#include "Parser.cpp"
+#include "Lexer.cpp"
+#include "Compiler.cpp"

@@ -1,13 +1,21 @@
 #include "Common.h"
 #include "Lexer.h"
 #include "Parser.h"
+#include "Compiler.h"
 
 #include <cstdio>
+#include <cstring>
+#include <iomanip>
 #include <iostream>
+
+#include <errno.h>
+#include <sys/mman.h>
 
 static int RunFile(const char* filepath);
 static void PrintLexResults(std::string_view filePrefix, const std::vector<std::unique_ptr<Token>>& tokens);
 static void PrintParseResults(std::string_view filePrefix, const std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>>& procedures);
+static void PrintCompileResults(const std::basic_string<unsigned char>& machineCode, size_t entry);
+static void ExecuteCompileResults(const std::basic_string<unsigned char>& machineCode, size_t entry);
 static void PrintStatements(std::string_view filePrefix, const std::vector<std::unique_ptr<Statement>>& statements, size_t level = 0);
 static void PrintRegister(Register reg);
 static void PrintOperation(Operation op);
@@ -56,6 +64,18 @@ static int RunFile(const char* const filepath)
 	}
 
 	PrintParseResults(filepath, procedures);
+
+	std::basic_string<unsigned char> machineCode;
+	size_t entry;
+	error = Compile(procedures, machineCode, entry);
+	if (error)
+	{
+		std::cerr << filepath << ":" << error.pos.line << ":" << error.pos.col << ": Compiler error: " << error.message << '\n';
+		return 1;
+	}
+
+	PrintCompileResults(machineCode, entry);
+	ExecuteCompileResults(machineCode, entry);
 
 	return 0;
 }
@@ -160,6 +180,42 @@ static void PrintParseResults(const std::string_view filePrefix, const std::unor
 
 		std::cout << '\n';
 	}
+}
+
+static void PrintCompileResults(const std::basic_string<unsigned char>& machineCode, const size_t entry)
+{
+	std::cout << "Entry at " << entry << '\n';
+
+	std::cout << std::hex << std::setfill('0') << std::setw(2);
+	for (const auto c : machineCode)
+	{
+		std::cout << static_cast<int>(c) << " ";
+	}
+	std::cout.copyfmt(std::ios(NULL));
+
+	std::cout << '\n';
+}
+
+static void ExecuteCompileResults(const std::basic_string<unsigned char>& machineCode, size_t entry)
+{
+	const size_t len = machineCode.length();
+	void* mem = mmap(NULL, len, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (mem == MAP_FAILED)
+	{
+		std::cerr << "Mapping memory failed with errno " << errno << '\n';
+		return;
+	}
+	memcpy(mem, machineCode.data(), len);
+	mprotect(mem, len, PROT_EXEC);
+
+	char* entryPtr = static_cast<char*>(mem) + entry;
+	int64_t (*main)(int64_t a, int64_t b);
+	memcpy(&main, &entryPtr, 8);
+	const int64_t res = main(4, 7);
+
+	std::cout << "Res: " << res << '\n';
+
+	munmap(mem, len);
 }
 
 static void PrintStatements(const std::string_view filePrefix, const std::vector<std::unique_ptr<Statement>>& statements, const size_t level)

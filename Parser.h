@@ -28,22 +28,22 @@ enum class OperandTag {
 	Immediate,
 };
 
-enum class Register {
-	rax,
-	rbx,
-	rcx,
-	rdx,
-	rsi,
-	rdi,
-	rbp,
-	r8,
-	r9,
-	r10,
-	r11,
-	r12,
-	r13,
-	r14,
-	r15,
+enum class Register : uint8_t {
+	rax = 0x00,
+	rbx = 0x03,
+	rcx = 0x01,
+	rdx = 0x02,
+	rsi = 0x06,
+	rdi = 0x07,
+	rbp = 0x05,
+	r8 = 0x08,
+	r9 = 0x09,
+	r10 = 0x0A,
+	r11 = 0x0B,
+	r12 = 0x0C,
+	r13 = 0x0D,
+	r14 = 0x0E,
+	r15 = 0x0F,
 };
 
 enum class Operation {

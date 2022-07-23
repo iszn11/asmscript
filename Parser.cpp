@@ -5,7 +5,7 @@
 
 using Statements = std::vector<std::unique_ptr<Statement>>;
 
-static bool success;
+static bool parserSuccess;
 static std::unique_ptr<Token>* tokenPtr;
 static std::unique_ptr<Token>* tokenEnd;
 
@@ -40,7 +40,7 @@ static CodePos GetPos();
 		std::string name;
 		Statements statements;
 		TRY(ParseProcedure(name, statements));
-		if (!success)
+		if (!parserSuccess)
 		{
 			return Error{"Unrecognized top-level declaration.", GetPos()};
 		}
@@ -97,7 +97,7 @@ static CodePos GetPos()
 {
 	if (!EatToken(TokenTag::KeyProc))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -116,13 +116,13 @@ static CodePos GetPos()
 	while (!EatToken(TokenTag::BraceClose))
 	{
 		TRY(ParseStatement(statements));
-		if (!success)
+		if (!parserSuccess)
 		{
 			return Error{"Unrecognized statement.", GetPos()};
 		}
 	}
 
-	success = true;
+	parserSuccess = true;
 	return Error::None;
 }
 
@@ -182,6 +182,15 @@ static CodePos GetPos()
 		case TokenTag::RegR14: operand = std::make_unique<RegisterOperand>(Register::r14, pos); break;
 		case TokenTag::RegR15: operand = std::make_unique<RegisterOperand>(Register::r15, pos); break;
 		case TokenTag::Number: operand = std::make_unique<ImmediateOperand>(GetToken<NumberToken>()->value, pos); break;
+		case TokenTag::Minus:
+		{
+			tokenPtr += 1;
+			if (!IsToken(TokenTag::Number))
+			{
+				return Error{"Number expected after minus sign to form an immediate value.", pos};
+			}
+			operand = std::make_unique<ImmediateOperand>(-GetToken<NumberToken>()->value, pos); break;
+		}
 		default:
 			return Error{"Unrecognized operand, expected register or immediate value.", pos};
 	}
@@ -210,42 +219,42 @@ static CodePos GetPos()
 		case TokenTag::RegR14: reg = Register::r14; break;
 		case TokenTag::RegR15: reg = Register::r15; break;
 		default:
-			success = false;
+			parserSuccess = false;
 			return Error::None;
 	}
 	tokenPtr += 1;
 
-	success = true;
+	parserSuccess = true;
 	return Error::None;
 }
 
 [[nodiscard]] static Error ParseStatement(Statements& statements)
 {
 	Error error = ParseAssignment(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseLoop(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseBranch(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseBreak(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseContinue(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseReturn(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseCall(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
 	error = ParseStdout(statements);
-	if (error || success) return error;
+	if (error || parserSuccess) return error;
 
-	success = false;
+	parserSuccess = false;
 	return Error::None;
 }
 
@@ -255,7 +264,7 @@ static CodePos GetPos()
 
 	Register dest;
 	Error error = ParseRegister(dest);
-	if (!success) return error;
+	if (!parserSuccess) return error;
 
 	Operation op;
 	bool isShorthand = true;
@@ -284,7 +293,7 @@ static CodePos GetPos()
 
 	if (EatToken(TokenTag::Semicolon))
 	{
-		success = true;
+		parserSuccess = true;
 		if (isShorthand)
 		{
 			statements.emplace_back(std::make_unique<ShorthandStatement>(dest, op, std::move(sourceA), std::move(condition), pos));
@@ -329,7 +338,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<LonghandStatement>(dest, op, std::move(sourceA), std::move(sourceB), std::move(condition), pos));
 	return Error::None;
 }
@@ -340,7 +349,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::KeyLoop))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -363,13 +372,13 @@ static CodePos GetPos()
 	while (!EatToken(TokenTag::BraceClose))
 	{
 		TRY(ParseStatement(innerStatements));
-		if (!success)
+		if (!parserSuccess)
 		{
 			return Error{"Unrecognized statement.", GetPos()};
 		}
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<LoopStatement>(std::move(condition), std::move(innerStatements), pos));
 	return Error::None;
 }
@@ -380,7 +389,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::KeyBranch))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -404,7 +413,7 @@ static CodePos GetPos()
 	while (!EatToken(TokenTag::BraceClose))
 	{
 		TRY(ParseStatement(innerStatements));
-		if (!success)
+		if (!parserSuccess)
 		{
 			return Error{"Unrecognized statement.", GetPos()};
 		}
@@ -421,14 +430,14 @@ static CodePos GetPos()
 		while (!EatToken(TokenTag::BraceClose))
 		{
 			TRY(ParseStatement(elseBlock));
-			if (!success)
+			if (!parserSuccess)
 			{
 				return Error{"Unrecognized statement.", GetPos()};
 			}
 		}
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<BranchStatement>(std::move(condition), std::move(innerStatements), std::move(elseBlock), pos));
 	return Error::None;
 }
@@ -439,7 +448,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::KeyBreak))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -454,7 +463,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<Statement>(StatementTag::Break, pos, std::move(condition)));
 	return Error::None;
 }
@@ -465,7 +474,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::KeyContinue))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -480,7 +489,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<Statement>(StatementTag::Continue, pos, std::move(condition)));
 	return Error::None;
 }
@@ -491,7 +500,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::KeyReturn))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -506,7 +515,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<Statement>(StatementTag::Return, pos, std::move(condition)));
 	return Error::None;
 }
@@ -517,7 +526,7 @@ static CodePos GetPos()
 
 	if (!IsToken(TokenTag::Identifier))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -535,7 +544,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<CallStatement>(name, std::move(condition), pos));
 	return Error::None;
 }
@@ -546,7 +555,7 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::Shl))
 	{
-		success = false;
+		parserSuccess = false;
 		return Error::None;
 	}
 
@@ -564,7 +573,7 @@ static CodePos GetPos()
 		return Error{"Expected ;.", GetPos()};
 	}
 
-	success = true;
+	parserSuccess = true;
 	statements.emplace_back(std::make_unique<StdoutStatement>(std::move(source), std::move(condition), pos));
 	return Error::None;
 }

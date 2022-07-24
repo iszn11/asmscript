@@ -30,29 +30,41 @@
 //	rax -= -1234605616436508552;
 //}
 
-proc gcd {
-	loop (rax != rbx) {
-		branch (rax > rbx) {
-			rax -= rbx;
-		} else {
-			rbx -= rax;
+//proc gcd {
+//	loop (rax != rbx) {
+//		branch (rax > rbx) {
+//			rax -= rbx;
+//		} else {
+//			rbx -= rax;
+//		}
+//	}
+//}
+
+proc prime_test {
+	rbx = 2;
+	loop {
+		rcx = rbx;
+		rcx *= rbx;
+		branch (rcx > rsi) {
+			<< rsi;
+			return;
 		}
+
+		rax = rsi;
+		rax %= rbx;
+
+		branch (rax == 0) {
+			return;
+		}
+
+		rbx += 1;
 	}
 }
 
 proc main {
-	rax = 10;
-	rbx = 8;
-	gcd;
-	<< rax;
-
-	rax = 24;
-	rbx = 16;
-	gcd;
-	<< rax;
-
-	rax = 19;
-	rbx = 23;
-	gcd;
-	<< rax;
+	rsi = 2;
+	loop (rsi <= 100) {
+		prime_test;
+		rsi += 1;
+	}
 }

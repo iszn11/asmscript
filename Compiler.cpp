@@ -17,7 +17,8 @@ static void CompileStartProcedure(MachineCode& code, std::unordered_map<size_t, 
 
 static void EmitRexW(const bool r, const bool b, MachineCode& code);
 static void EmitRexB(MachineCode& code);
-static void EmitModRM(unsigned char mod, unsigned char reg, unsigned char rm, MachineCode& code);
+static void EmitModRM(uint8_t mod, uint8_t reg, uint8_t rm, MachineCode& code);
+static void EmitSIB(uint8_t scale, uint8_t index, uint8_t base, MachineCode& code);
 static void EmitImm8(int8_t value, MachineCode& code);
 static void EmitImm32(int32_t value, MachineCode& code);
 static void EmitImm64(int64_t value, MachineCode& code);
@@ -27,6 +28,8 @@ static void EmitPopAllRegs(MachineCode& code);
 
 static void EmitMov(Register dest, Register source, MachineCode& code);
 static void EmitMov(Register dest, int64_t value, MachineCode& code);
+static void EmitMovStack(Register dest, int64_t stackOffset, MachineCode& code);
+static void EmitMovStack(int64_t stackOffset, Register source, MachineCode& code);
 static void EmitAdd(Register dest, Register source, MachineCode& code);
 static void EmitAdd(Register dest, int64_t value, MachineCode& code);
 static void EmitSub(Register dest, Register source, MachineCode& code);
@@ -165,10 +168,77 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 				}
 				break;
 			case Operation::Div:
-				(void)EmitIdiv;
-				return Error{"Unsupported shorthand operation type.", stmt.pos};
+				if (stmt.dest != Register::rax)
+				{
+					return Error{"Arbitrary dividend not implemented. Use rax as dividend.", stmt.pos};
+				}
+				switch (stmt.source->tag)
+				{
+					case OperandTag::Register:
+					{
+						const Register divisor = static_cast<const RegisterOperand&>(*stmt.source).reg;
+						if (divisor == Register::rdx)
+						{
+							return Error{"Arbitrary divisor not implemented. Use any register other than rdx as divisor.", stmt.pos};
+						}
+						EmitMovStack(-1, Register::rdx, code);
+						EmitMov(Register::rdx, 0, code);
+						EmitIdiv(divisor, code);
+						EmitMovStack(Register::rdx, -1, code);
+						break;
+					}
+					case OperandTag::Immediate:
+					{
+						EmitMovStack(-1, Register::rdx, code);
+						EmitMovStack(-2, Register::rbx, code);
+						EmitMov(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						EmitMov(Register::rdx, 0, code);
+						EmitIdiv(Register::rbx, code);
+						EmitMovStack(Register::rdx, -1, code);
+						EmitMovStack(Register::rbx, -2, code);
+						break;
+					}
+					default:
+						return Error{"Unsopported source argument type.", statement.pos};
+				}
+				break;
 			case Operation::Mod:
-				return Error{"Unsupported shorthand operation type.", stmt.pos};
+				if (stmt.dest != Register::rax)
+				{
+					return Error{"Arbitrary dividend not implemented. Use rax as dividend.", stmt.pos};
+				}
+				switch (stmt.source->tag)
+				{
+					case OperandTag::Register:
+					{
+						const Register divisor = static_cast<const RegisterOperand&>(*stmt.source).reg;
+						if (divisor == Register::rdx)
+						{
+							return Error{"Arbitrary divisor not implemented. Use any register other than rdx as divisor.", stmt.pos};
+						}
+						EmitMovStack(-1, Register::rdx, code);
+						EmitMov(Register::rdx, 0, code);
+						EmitIdiv(divisor, code);
+						EmitMov(Register::rax, Register::rdx, code);
+						EmitMovStack(Register::rdx, -1, code);
+						break;
+					}
+					case OperandTag::Immediate:
+					{
+						EmitMovStack(-1, Register::rdx, code);
+						EmitMovStack(-2, Register::rbx, code);
+						EmitMov(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						EmitMov(Register::rdx, 0, code);
+						EmitIdiv(Register::rbx, code);
+						EmitMov(Register::rax, Register::rdx, code);
+						EmitMovStack(Register::rdx, -1, code);
+						EmitMovStack(Register::rbx, -2, code);
+						break;
+					}
+					default:
+						return Error{"Unsopported source argument type.", statement.pos};
+				}
+				break;
 			default:
 				return Error{"Unsupported shorthand operation type.", stmt.pos};
 		}
@@ -188,23 +258,32 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 	case StatementTag::Loop:
 	{
 		const auto& stmt = static_cast<const LoopStatement&>(statement);
-		const Condition& cond = *stmt.condition;
 
 		const size_t startPtr = code.length();
-		bool inverted = true;
-		TRY(CompileCondition(cond, code, inverted));
-		const size_t jumpPtr = code.length();
-		EmitNop(6, code);
+
+		size_t jumpPtr;
+		bool inverted;
+		if (stmt.condition.has_value())
+		{
+			inverted = true;
+			TRY(CompileCondition(*stmt.condition, code, inverted));
+			jumpPtr = code.length();
+			EmitNop(6, code);
+		}
 
 		for (const auto& innerStatement : stmt.statements)
 		{
 			TRY(CompileStatement(*innerStatement, code, callTable));
 		}
+
 		const size_t jumpBackPtr = code.length();
 		EmitNop(5, code);
 		const size_t loopEndPtr = code.length();
 
-		WriteJump(jumpPtr, loopEndPtr, cond.comp, inverted, code);
+		if (stmt.condition.has_value())
+		{
+			WriteJump(jumpPtr, loopEndPtr, stmt.condition->comp, inverted, code);
+		}
 		WriteJump(jumpBackPtr, startPtr, code);
 		return Error::None;
 	}
@@ -383,9 +462,15 @@ static void EmitRexB(MachineCode& code)
 	code.push_back(0x41);
 }
 
-static void EmitModRM(unsigned char mod, unsigned char reg, unsigned char rm, MachineCode& code)
+static void EmitModRM(const uint8_t mod, const uint8_t reg, const uint8_t rm, MachineCode& code)
 {
-	unsigned char byte = (mod << 6) | (reg << 3) | (rm << 0);
+	const uint8_t byte = (mod << 6) | (reg << 3) | (rm << 0);
+	code.push_back(byte);
+}
+
+static void EmitSIB(const uint8_t scale, const uint8_t index, const uint8_t base, MachineCode& code)
+{
+	const uint8_t byte = (scale << 6) | (index << 3) | (base << 0);
 	code.push_back(byte);
 }
 
@@ -467,6 +552,50 @@ static void EmitMov(const Register dest, const int64_t value, MachineCode& code)
 	EmitImm64(value, code);
 }
 
+static void EmitMovStack(Register dest, int64_t stackOffset, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+	int64_t disp = stackOffset * 8;
+
+	EmitRexW(destval & 0x08, false, code);
+	code.push_back(0x8B);
+
+	if (disp >= INT64_C(-128) && disp <= INT64_C(127))
+	{
+		EmitModRM(0b01, destval & 0x07, 0b100, code);
+		EmitSIB(0b00, 0b100, 0x04, code);
+		EmitImm8(static_cast<int8_t>(disp), code);
+	}
+	else
+	{
+		EmitModRM(0b10, destval & 0x07, 0b100, code);
+		EmitSIB(0b00, 0b100, 0x04, code);
+		EmitImm32(static_cast<int32_t>(disp), code);
+	}
+}
+
+static void EmitMovStack(int64_t stackOffset, Register source, MachineCode& code)
+{
+	const uint8_t srcval = static_cast<uint8_t>(source);
+	int64_t disp = stackOffset * 8;
+
+	EmitRexW(srcval & 0x08, false, code);
+	code.push_back(0x89);
+
+	if (disp >= INT64_C(-128) && disp <= INT64_C(127))
+	{
+		EmitModRM(0b01, srcval & 0x07, 0b100, code);
+		EmitSIB(0b00, 0b100, 0x04, code);
+		EmitImm8(static_cast<int8_t>(disp), code);
+	}
+	else
+	{
+		EmitModRM(0b10, srcval & 0x07, 0b100, code);
+		EmitSIB(0b00, 0b100, 0x04, code);
+		EmitImm32(static_cast<int32_t>(disp), code);
+	}
+}
+
 static void EmitAdd(Register dest, Register source, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
@@ -498,10 +627,10 @@ static void EmitAdd(Register dest, int64_t value, MachineCode& code)
 	else
 	{
 		Register tmp = dest != Register::rax ? Register::rax : Register::rbx;
-		EmitPush(tmp, code);
+		EmitMovStack(-1, tmp, code);
 		EmitMov(tmp, value, code);
 		EmitAdd(dest, tmp, code);
-		EmitPop(tmp, code);
+		EmitMovStack(tmp, -1, code);
 	}
 }
 
@@ -536,10 +665,10 @@ static void EmitSub(Register dest, int64_t value, MachineCode& code)
 	else
 	{
 		Register tmp = dest != Register::rax ? Register::rax : Register::rbx;
-		EmitPush(tmp, code);
+		EmitMovStack(-1, tmp, code);
 		EmitMov(tmp, value, code);
 		EmitSub(dest, tmp, code);
-		EmitPop(tmp, code);
+		EmitMovStack(tmp, -1, code);
 	}
 }
 
@@ -621,10 +750,10 @@ static void EmitCmp(const Register a, const int64_t b, MachineCode& code, bool& 
 	else
 	{
 		Register tmp = a != Register::rax ? Register::rax : Register::rbx;
-		EmitPush(tmp, code);
+		EmitMovStack(-1, tmp, code);
 		EmitMov(tmp, b, code);
 		EmitCmp(a, tmp, code, inverted);
-		EmitPop(tmp, code);
+		EmitMovStack(tmp, -1, code);
 	}
 }
 

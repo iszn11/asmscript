@@ -2,6 +2,7 @@
 #include "Lexer.h"
 #include "Parser.h"
 #include "Compiler.h"
+#include "Runtime.h"
 
 #include <cstdio>
 #include <cstring>
@@ -22,18 +23,36 @@ static void PrintOperation(Operation op);
 static void PrintCondition(const Condition& condition);
 static void PrintOperand(const Operand& operand);
 
+static bool flag_dumpTokens = false;
+static bool flag_dumpAst = false;
+static bool flag_dumpCode = false;
+static bool flag_noExec = false;
+
 int main(int argc, char* argv[])
 {
-	if (argc == 2)
+	if (argc < 2)
 	{
-		return RunFile(argv[1]);
-	}
-	else
-	{
-		std::cerr << "Usage: " << argv[0] << " [FILE]\n"
-			<< "Expected 1 arguments, got " << (argc - 1) << '\n';
+		fprintf(stderr,
+			"Usage: %s [FLAGS] FILE\n"
+			"    --dump-tokens    Dump lexer results\n"
+			"    --dump-ast       Dump parser results\n"
+			"    --dump-code      Dump machine code\n"
+			"    --no-exec        Do not execute compiled code\n",
+			argv[0]
+		);
 		return 1;
 	}
+
+	for (int argnum = 1; argnum < argc - 1; ++argnum)
+	{
+		const char* arg = argv[argnum];
+		if (strcmp(arg, "--dump-tokens") == 0) flag_dumpTokens = true;
+		else if (strcmp(arg, "--dump-ast") == 0) flag_dumpAst = true;
+		else if (strcmp(arg, "--dump-code") == 0) flag_dumpCode = true;
+		else if (strcmp(arg, "--no-exec") == 0) flag_noExec = true;
+	}
+
+	return RunFile(argv[argc - 1]);
 }
 
 static int RunFile(const char* const filepath)
@@ -49,38 +68,33 @@ static int RunFile(const char* const filepath)
 	Error error = Lex(code.c_str(), tokens);
 	if (error)
 	{
-		std::cerr << filepath << ":" << error.pos.line << ":" << error.pos.col << ": Lexer error: " << error.message << '\n';
+		fprintf(stderr, "%s:%zu:%zu: Lexer error: %s\n", filepath, error.pos.line, error.pos.col, error.message.c_str());
 		return 1;
 	}
 
-	//PrintLexResults(filepath, tokens);
+	if (flag_dumpTokens) PrintLexResults(filepath, tokens);
 
 	std::unordered_map<std::string, std::vector<std::unique_ptr<Statement>>> procedures;
 	error = Parse(tokens, procedures);
 	if (error)
 	{
-		std::cerr << filepath << ":" << error.pos.line << ":" << error.pos.col << ": Parser error: " << error.message << '\n';
+		fprintf(stderr, "%s:%zu:%zu: Parser error: %s\n", filepath, error.pos.line, error.pos.col, error.message.c_str());
 		return 1;
 	}
 
-	//PrintParseResults(filepath, procedures);
+	if (flag_dumpAst) PrintParseResults(filepath, procedures);
 
 	std::basic_string<unsigned char> machineCode;
 	size_t entry;
 	error = Compile(procedures, machineCode, entry);
 	if (error)
 	{
-		std::cerr << filepath << ":" << error.pos.line << ":" << error.pos.col << ": Compiler error: " << error.message << '\n';
+		fprintf(stderr, "%s:%zu:%zu: Compiler error: %s\n", filepath, error.pos.line, error.pos.col, error.message.c_str());
 		return 1;
 	}
 
-	//PrintCompileResults(machineCode, entry);
-	ExecuteCompileResults(machineCode, entry);
-
-	(void)PrintLexResults;
-	(void)PrintParseResults;
-	(void)PrintCompileResults;
-	(void)ExecuteCompileResults;
+	if (flag_dumpCode) PrintCompileResults(machineCode, entry);
+	if (!flag_noExec) ExecuteCompileResults(machineCode, entry);
 
 	return 0;
 }
@@ -189,16 +203,19 @@ static void PrintParseResults(const std::string_view filePrefix, const std::unor
 
 static void PrintCompileResults(const std::basic_string<unsigned char>& machineCode, const size_t entry)
 {
-	std::cout << "Entry at " << entry << '\n';
+	printf("Entry point is at 0x%016zX\n", entry);
+	printf(
+		"Runtime library function would be at:\n"
+		"\t0x%016zX: void RtPrint(int64_t)\n",
+		(size_t)(&RtPrint)
+	);
 
-	std::cout << std::hex;
-	for (const auto c : machineCode)
+	for (const unsigned char c : machineCode)
 	{
-		std::cout << std::setfill('0') << std::setw(2) << static_cast<int>(c) << " ";
+		printf("%02X ", c);
 	}
-	std::cout.copyfmt(std::ios(NULL));
 
-	std::cout << '\n';
+	puts("");
 }
 
 static void ExecuteCompileResults(const std::basic_string<unsigned char>& machineCode, size_t entry)
@@ -207,7 +224,7 @@ static void ExecuteCompileResults(const std::basic_string<unsigned char>& machin
 	void* mem = mmap(NULL, len, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (mem == MAP_FAILED)
 	{
-		std::cerr << "Mapping memory failed with errno " << errno << '\n';
+		fprintf(stderr, "Mapping memory failed with errno %d\n", errno);
 		return;
 	}
 	memcpy(mem, machineCode.data(), len);

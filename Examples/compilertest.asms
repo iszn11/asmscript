@@ -41,12 +41,5 @@
 //}
 
 proc main {
-	rax = 10;
-	rbx = 11;
-	rax |= 16;
-	rbx &= 1;
-	<< rax;
-	<< "\n";
-	<< rbx;
-	<< "\n";
+	var a, b, c;
 }

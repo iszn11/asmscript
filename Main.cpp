@@ -416,6 +416,16 @@ static void PrintStatements(const std::string_view filePrefix, const std::vector
 			}
 			break;
 		}
+		case StatementTag::Variables:
+		{
+			auto stmt = static_cast<VariablesStatement*>(statement.get());
+			std::cout << "Variables ";
+			for (const auto& variable : stmt->variables)
+			{
+				std::cout << variable << " ";
+			}
+			break;
+		}
 		}
 		std::cout << '\n';
 	}

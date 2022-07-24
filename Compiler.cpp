@@ -59,6 +59,7 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 
 static std::unordered_set<std::size_t> loopBreaks;
 static std::unordered_set<std::size_t> loopContinues;
+static std::unordered_map<std::string, size_t> procVariables;
 
 [[nodiscard]] Error Compile(std::unordered_map<std::string, Statements>& procedures, MachineCode& code, size_t& entry)
 {
@@ -95,9 +96,25 @@ static std::unordered_set<std::size_t> loopContinues;
 
 [[nodiscard]] static Error CompileProcedure(const Statements& statements, MachineCode& code, std::unordered_map<size_t, std::string>& callTable)
 {
-	for (const auto& statement : statements)
+	size_t i = 0;
+
+	if (statements.size() > 0 && statements[0]->tag == StatementTag::Variables)
 	{
-		TRY(CompileStatement(*statement, code, callTable));
+		i += 1;
+
+		const auto& stmt = static_cast<const VariablesStatement&>(*statements[0]);
+		size_t loc = 0;
+		for (const auto& variable : stmt.variables)
+		{
+			procVariables[variable] = loc;
+			loc += 1;
+		}
+	}
+
+	if (procVariables.size() > 0) EmitSub(static_cast<Register>(4), procVariables.size() * 8, code);
+	for (;i < statements.size(); ++i)
+	{
+		TRY(CompileStatement(*statements[i], code, callTable));
 	}
 
 	if (!loopBreaks.empty() || !loopContinues.empty())
@@ -105,7 +122,10 @@ static std::unordered_set<std::size_t> loopContinues;
 		return Error{"Break or continue statements in a procedure outside a loop.", CodePos{0, 0}};
 	}
 
+	if (procVariables.size() > 0) EmitAdd(static_cast<Register>(4), procVariables.size() * 8, code);
 	EmitReturn(code);
+
+	procVariables.clear();
 	return Error::None;
 }
 
@@ -407,6 +427,7 @@ static std::unordered_set<std::size_t> loopContinues;
 	}
 	case StatementTag::Return:
 	{
+		if (procVariables.size() > 0) EmitAdd(static_cast<Register>(4), procVariables.size() * 8, code);
 		EmitReturn(code);
 		break;
 	}
@@ -485,6 +506,8 @@ static std::unordered_set<std::size_t> loopContinues;
 	case StatementTag::Pop:
 		EmitPop(static_cast<const RegisterStatement&>(statement).reg, code);
 		break;
+	case StatementTag::Variables:
+		return Error{"Variable declarations has to be the first statement of a procedure.", statement.pos};
 	default:
 		return Error{"Statement not implemented in the compiler.", statement.pos};
 	}

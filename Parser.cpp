@@ -31,6 +31,7 @@ static CodePos GetPos();
 [[nodiscard]] static Error ParseStdout(Statements& statements);
 [[nodiscard]] static Error ParsePush(Statements& statements);
 [[nodiscard]] static Error ParsePop(Statements& statements);
+[[nodiscard]] static Error ParseVariables(Statements& statements);
 
 [[nodiscard]] Error Parse(std::vector<std::unique_ptr<Token>>& tokens, std::unordered_map<std::string, Statements>& procedures)
 {
@@ -260,6 +261,9 @@ static CodePos GetPos()
 	if (error || parserSuccess) return error;
 
 	error = ParsePop(statements);
+	if (error || parserSuccess) return error;
+
+	error = ParseVariables(statements);
 	if (error || parserSuccess) return error;
 
 	parserSuccess = false;
@@ -674,5 +678,41 @@ static CodePos GetPos()
 
 	parserSuccess = true;
 	statements.emplace_back(std::make_unique<RegisterStatement>(StatementTag::Pop, reg, std::move(condition), pos));
+	return Error::None;
+}
+
+[[nodiscard]] static Error ParseVariables(Statements& statements)
+{
+	const CodePos pos = GetPos();
+
+	if (!EatToken(TokenTag::KeyVar))
+	{
+		parserSuccess = false;
+		return Error::None;
+	}
+
+	std::vector<std::string> variables;
+	while (true)
+	{
+		if (!IsToken(TokenTag::Identifier))
+		{
+			return Error{"Expected variable name", GetPos()};
+		}
+		variables.push_back(GetToken<IdentifierToken>()->name);
+		tokenPtr += 1;
+
+		if (EatToken(TokenTag::Semicolon))
+		{
+			break;
+		}
+
+		if (!EatToken(TokenTag::Comma))
+		{
+			return Error{"Expected , or ;.", GetPos()};
+		}
+	}
+
+	parserSuccess = true;
+	statements.emplace_back(std::make_unique<VariablesStatement>(std::move(variables), pos));
 	return Error::None;
 }

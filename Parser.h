@@ -25,6 +25,7 @@ enum class StatementTag {
 	StdoutText, // StdoutTextStatement
 	Push,       // RegisterStatement
 	Pop,        // RegisterStatement
+	Variables,  // VariablesStatement
 };
 
 enum class OperandTag {
@@ -169,6 +170,12 @@ struct RegisterStatement : public Statement {
 	Register reg;
 
 	RegisterStatement(const StatementTag tag, const Register reg, std::optional<Condition> condition, const CodePos pos) : Statement{tag, pos, std::move(condition)}, reg{reg} {}
+};
+
+struct VariablesStatement : public Statement {
+	std::vector<std::string> variables;
+
+	VariablesStatement(std::vector<std::string> variables, const CodePos pos) : Statement{StatementTag::Variables, pos, std::nullopt}, variables{std::move(variables)} {}
 };
 
 struct Token;

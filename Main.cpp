@@ -236,7 +236,7 @@ static void ExecuteCompileResults(const std::basic_string<unsigned char>& machin
 		return;
 	}
 	memcpy(mem, machineCode.data(), len);
-	mprotect(mem, len, PROT_EXEC);
+	mprotect(mem, len, PROT_EXEC | PROT_READ);
 
 	char* entryPtr = static_cast<char*>(mem) + entry;
 	void (*main)();

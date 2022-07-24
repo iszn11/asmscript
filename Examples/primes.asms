@@ -13,6 +13,7 @@ proc prime_test {
 	}
 
 	<< rax;
+	<< "\n";
 }
 
 proc main {

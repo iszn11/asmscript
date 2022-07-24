@@ -40,31 +40,13 @@
 //	}
 //}
 
-proc prime_test {
-	rbx = 2;
-	loop {
-		rcx = rbx;
-		rcx *= rbx;
-		branch (rcx > rsi) {
-			<< rsi;
-			return;
-		}
-
-		rax = rsi;
-		rax %= rbx;
-
-		branch (rax == 0) {
-			return;
-		}
-
-		rbx += 1;
-	}
-}
-
 proc main {
-	rsi = 2;
-	loop (rsi <= 100) {
-		prime_test;
-		rsi += 1;
-	}
+	rax = 10;
+	rbx = 11;
+	rax |= 16;
+	rbx &= 1;
+	<< rax;
+	<< "\n";
+	<< rbx;
+	<< "\n";
 }

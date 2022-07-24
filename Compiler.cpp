@@ -5,6 +5,7 @@
 #include "Runtime.h"
 
 #include <cstring>
+#include <unordered_set>
 
 using MachineCode = std::basic_string<unsigned char>;
 using Statements = std::vector<std::unique_ptr<Statement>>;
@@ -28,12 +29,19 @@ static void EmitPopAllRegs(MachineCode& code);
 
 static void EmitMov(Register dest, Register source, MachineCode& code);
 static void EmitMov(Register dest, int64_t value, MachineCode& code);
+static void EmitLea(Register dest, size_t to, MachineCode& code);
 static void EmitMovStack(Register dest, int64_t stackOffset, MachineCode& code);
 static void EmitMovStack(int64_t stackOffset, Register source, MachineCode& code);
 static void EmitAdd(Register dest, Register source, MachineCode& code);
 static void EmitAdd(Register dest, int64_t value, MachineCode& code);
 static void EmitSub(Register dest, Register source, MachineCode& code);
 static void EmitSub(Register dest, int64_t value, MachineCode& code);
+static void EmitAnd(Register dest, Register source, MachineCode& code);
+static void EmitAnd(Register dest, int64_t value, MachineCode& code);
+static void EmitOr(Register dest, Register source, MachineCode& code);
+static void EmitOr(Register dest, int64_t value, MachineCode& code);
+static void EmitXor(Register dest, Register source, MachineCode& code);
+static void EmitXor(Register dest, int64_t value, MachineCode& code);
 static void EmitImul(Register dest, Register source, MachineCode& code);
 static void EmitImul(Register dest, Register source, int64_t value, MachineCode& code);
 static void EmitIdiv(Register divisor, MachineCode& code);
@@ -48,6 +56,9 @@ static void EmitPop(Register reg, MachineCode& code);
 static void EmitNop(size_t length, MachineCode& code);
 static void EmitCall(Register reg, MachineCode& code);
 static void WriteCall(size_t from, size_t to, MachineCode& code);
+
+static std::unordered_set<std::size_t> loopBreaks;
+static std::unordered_set<std::size_t> loopContinues;
 
 [[nodiscard]] Error Compile(std::unordered_map<std::string, Statements>& procedures, MachineCode& code, size_t& entry)
 {
@@ -88,22 +99,34 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 	{
 		TRY(CompileStatement(*statement, code, callTable));
 	}
+
+	if (!loopBreaks.empty() || !loopContinues.empty())
+	{
+		return Error{"Break or continue statements in a procedure outside a loop.", CodePos{0, 0}};
+	}
+
 	EmitReturn(code);
 	return Error::None;
 }
 
 [[nodiscard]] static Error CompileStatement(const Statement& statement, MachineCode& code, std::unordered_map<size_t, std::string>& callTable)
 {
+	const size_t startPtr = code.length();
+
+	bool conditionalJumpInverted = true;
+	size_t conditionalJumpPtr;
+	if (statement.condition.has_value())
+	{
+		TRY(CompileCondition(*statement.condition, code, conditionalJumpInverted));
+		conditionalJumpPtr = code.length();
+		EmitNop(6, code);
+	}
+
 	switch (statement.tag)
 	{
 	case StatementTag::Assignment:
 	{
 		const auto& stmt = static_cast<const AssignmentStatement&>(statement);
-		if (stmt.condition.has_value())
-		{
-			return Error{"Conditional assignment not implemented in the compiler.", statement.pos};
-		}
-
 		switch (stmt.source->tag)
 		{
 			case OperandTag::Register:
@@ -115,17 +138,11 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 			default:
 				return Error{"Unsopported source argument type.", statement.pos};
 		}
-
-		return Error::None;
+		break;
 	}
 	case StatementTag::Shorthand:
 	{
 		const auto& stmt = static_cast<const ShorthandStatement&>(statement);
-		if (stmt.condition.has_value())
-		{
-			return Error{"Conditional shorthand not implemented in the compiler.", statement.pos};
-		}
-
 		switch (stmt.op)
 		{
 			case Operation::Add:
@@ -168,34 +185,51 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 				}
 				break;
 			case Operation::Div:
-				if (stmt.dest != Register::rax)
-				{
-					return Error{"Arbitrary dividend not implemented. Use rax as dividend.", stmt.pos};
-				}
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
 					{
-						const Register divisor = static_cast<const RegisterOperand&>(*stmt.source).reg;
-						if (divisor == Register::rdx)
-						{
-							return Error{"Arbitrary divisor not implemented. Use any register other than rdx as divisor.", stmt.pos};
-						}
-						EmitMovStack(-1, Register::rdx, code);
+						EmitMovStack(-1, Register::rax, code);
+						EmitMovStack(-2, Register::rdx, code);
+						EmitMovStack(-3, Register::rbx, code);
+
+						EmitMovStack(-4, stmt.dest, code);
+						EmitMovStack(-5, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+
 						EmitMov(Register::rdx, 0, code);
-						EmitIdiv(divisor, code);
-						EmitMovStack(Register::rdx, -1, code);
+						EmitMovStack(Register::rax, -4, code);
+						EmitMovStack(Register::rbx, -5, code);
+
+						EmitIdiv(Register::rbx, code);
+						EmitMovStack(-4, Register::rax, code);
+
+						EmitMovStack(Register::rax, -1, code);
+						EmitMovStack(Register::rdx, -2, code);
+						EmitMovStack(Register::rbx, -3, code);
+
+						EmitMovStack(stmt.dest, -4, code);
 						break;
 					}
 					case OperandTag::Immediate:
 					{
-						EmitMovStack(-1, Register::rdx, code);
-						EmitMovStack(-2, Register::rbx, code);
-						EmitMov(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						EmitMovStack(-1, Register::rax, code);
+						EmitMovStack(-2, Register::rdx, code);
+						EmitMovStack(-3, Register::rbx, code);
+
+						EmitMovStack(-4, stmt.dest, code);
+
 						EmitMov(Register::rdx, 0, code);
+						EmitMovStack(Register::rax, -4, code);
+						EmitMovStack(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+
 						EmitIdiv(Register::rbx, code);
-						EmitMovStack(Register::rdx, -1, code);
-						EmitMovStack(Register::rbx, -2, code);
+						EmitMovStack(-4, Register::rax, code);
+
+						EmitMovStack(Register::rax, -1, code);
+						EmitMovStack(Register::rdx, -2, code);
+						EmitMovStack(Register::rbx, -3, code);
+
+						EmitMovStack(stmt.dest, -4, code);
 						break;
 					}
 					default:
@@ -203,38 +237,92 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 				}
 				break;
 			case Operation::Mod:
-				if (stmt.dest != Register::rax)
-				{
-					return Error{"Arbitrary dividend not implemented. Use rax as dividend.", stmt.pos};
-				}
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
 					{
-						const Register divisor = static_cast<const RegisterOperand&>(*stmt.source).reg;
-						if (divisor == Register::rdx)
-						{
-							return Error{"Arbitrary divisor not implemented. Use any register other than rdx as divisor.", stmt.pos};
-						}
-						EmitMovStack(-1, Register::rdx, code);
+						EmitMovStack(-1, Register::rax, code);
+						EmitMovStack(-2, Register::rdx, code);
+						EmitMovStack(-3, Register::rbx, code);
+
+						EmitMovStack(-4, stmt.dest, code);
+						EmitMovStack(-5, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+
 						EmitMov(Register::rdx, 0, code);
-						EmitIdiv(divisor, code);
-						EmitMov(Register::rax, Register::rdx, code);
-						EmitMovStack(Register::rdx, -1, code);
+						EmitMovStack(Register::rax, -4, code);
+						EmitMovStack(Register::rbx, -5, code);
+
+						EmitIdiv(Register::rbx, code);
+						EmitMovStack(-4, Register::rdx, code);
+
+						EmitMovStack(Register::rax, -1, code);
+						EmitMovStack(Register::rdx, -2, code);
+						EmitMovStack(Register::rbx, -3, code);
+
+						EmitMovStack(stmt.dest, -4, code);
 						break;
 					}
 					case OperandTag::Immediate:
 					{
-						EmitMovStack(-1, Register::rdx, code);
-						EmitMovStack(-2, Register::rbx, code);
-						EmitMov(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						EmitMovStack(-1, Register::rax, code);
+						EmitMovStack(-2, Register::rdx, code);
+						EmitMovStack(-3, Register::rbx, code);
+
+						EmitMovStack(-4, stmt.dest, code);
+
 						EmitMov(Register::rdx, 0, code);
+						EmitMovStack(Register::rax, -4, code);
+						EmitMovStack(Register::rbx, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+
 						EmitIdiv(Register::rbx, code);
-						EmitMov(Register::rax, Register::rdx, code);
-						EmitMovStack(Register::rdx, -1, code);
-						EmitMovStack(Register::rbx, -2, code);
+						EmitMovStack(-4, Register::rdx, code);
+
+						EmitMovStack(Register::rax, -1, code);
+						EmitMovStack(Register::rdx, -2, code);
+						EmitMovStack(Register::rbx, -3, code);
+
+						EmitMovStack(stmt.dest, -4, code);
 						break;
 					}
+					default:
+						return Error{"Unsopported source argument type.", statement.pos};
+				}
+				break;
+			case Operation::And:
+				switch (stmt.source->tag)
+				{
+					case OperandTag::Register:
+						EmitAnd(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						break;
+					case OperandTag::Immediate:
+						EmitAnd(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						break;
+					default:
+						return Error{"Unsopported source argument type.", statement.pos};
+				}
+				break;
+			case Operation::Or:
+				switch (stmt.source->tag)
+				{
+					case OperandTag::Register:
+						EmitOr(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						break;
+					case OperandTag::Immediate:
+						EmitOr(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						break;
+					default:
+						return Error{"Unsopported source argument type.", statement.pos};
+				}
+				break;
+			case Operation::Xor:
+				switch (stmt.source->tag)
+				{
+					case OperandTag::Register:
+						EmitXor(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						break;
+					case OperandTag::Immediate:
+						EmitXor(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
 				}
@@ -242,34 +330,16 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 			default:
 				return Error{"Unsupported shorthand operation type.", stmt.pos};
 		}
-
-		return Error::None;
+		break;
 	}
 	case StatementTag::Longhand:
 	{
-		const auto& stmt = static_cast<const LonghandStatement&>(statement);
-		if (stmt.condition.has_value())
-		{
-			return Error{"Conditional return not implemented in the compiler.", statement.pos};
-		}
-
+		//const auto& stmt = static_cast<const LonghandStatement&>(statement);
 		return Error{"Statement not implemented in the compiler.", statement.pos};
 	}
 	case StatementTag::Loop:
 	{
 		const auto& stmt = static_cast<const LoopStatement&>(statement);
-
-		const size_t startPtr = code.length();
-
-		size_t jumpPtr;
-		bool inverted;
-		if (stmt.condition.has_value())
-		{
-			inverted = true;
-			TRY(CompileCondition(*stmt.condition, code, inverted));
-			jumpPtr = code.length();
-			EmitNop(6, code);
-		}
 
 		for (const auto& innerStatement : stmt.statements)
 		{
@@ -278,24 +348,25 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 
 		const size_t jumpBackPtr = code.length();
 		EmitNop(5, code);
-		const size_t loopEndPtr = code.length();
-
-		if (stmt.condition.has_value())
-		{
-			WriteJump(jumpPtr, loopEndPtr, stmt.condition->comp, inverted, code);
-		}
 		WriteJump(jumpBackPtr, startPtr, code);
-		return Error::None;
+
+		for (const auto ptr : loopBreaks)
+		{
+			WriteJump(ptr, code.length(), code);
+		}
+
+		for (const auto ptr : loopContinues)
+		{
+			WriteJump(ptr, startPtr, code);
+		}
+
+		loopBreaks.clear();
+		loopContinues.clear();
+		break;
 	}
 	case StatementTag::Branch:
 	{
 		const auto& stmt = static_cast<const BranchStatement&>(statement);
-		const Condition& cond = *stmt.condition;
-
-		bool inverted = true;
-		TRY(CompileCondition(cond, code, inverted));
-		const size_t jumpPtr = code.length();
-		EmitNop(6, code);
 
 		size_t jumpPastElsePtr;
 		for (const auto& innerStatement : stmt.statements)
@@ -319,48 +390,37 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 			WriteJump(jumpPastElsePtr, elseBlockEndPtr, code);
 		}
 
-		WriteJump(jumpPtr, ifBlockEndPtr, cond.comp, inverted, code);
-		return Error::None;
+		WriteJump(conditionalJumpPtr, ifBlockEndPtr, statement.condition->comp, conditionalJumpInverted, code);
+		break;
 	}
 	case StatementTag::Break:
 	{
-		return Error{"Statement not implemented in the compiler.", statement.pos};
+		loopBreaks.emplace(code.length());
+		EmitNop(5, code);
+		break;
 	}
 	case StatementTag::Continue:
 	{
-		return Error{"Statement not implemented in the compiler.", statement.pos};
+		loopContinues.emplace(code.length());
+		EmitNop(5, code);
+		break;
 	}
 	case StatementTag::Return:
 	{
-		if (statement.condition.has_value())
-		{
-			return Error{"Conditional return not implemented in the compiler.", statement.pos};
-		}
-
 		EmitReturn(code);
-		return Error::None;
+		break;
 	}
 	case StatementTag::Call:
 	{
 		const auto& stmt = static_cast<const CallStatement&>(statement);
-		if (stmt.condition.has_value())
-		{
-			return Error{"Conditional call not implemented in the compiler.", statement.pos};
-		}
 
-		const size_t ptr = code.length();
-		callTable[ptr] = stmt.name;
-
+		callTable[code.length()] = stmt.name;
 		EmitNop(5, code);
-		return Error::None;
+		break;
 	}
 	case StatementTag::Stdout:
 	{
 		const auto& stmt = static_cast<const StdoutStatement&>(statement);
-		if (stmt.condition.has_value())
-		{
-			return Error{"Conditional stdout not implemented in the compiler.", statement.pos};
-		}
 
 		void (*fn)(int64_t) = &RtPrint;
 		int64_t addr;
@@ -393,11 +453,47 @@ static void WriteCall(size_t from, size_t to, MachineCode& code);
 
 		EmitPopAllRegs(code);
 
-		return Error::None;
+		break;
 	}
+	case StatementTag::StdoutText:
+	{
+		const auto& stmt = static_cast<const StdoutTextStatement&>(statement);
+
+		void (*fn)(const char*, size_t) = &RtPrint;
+		int64_t addr;
+		memcpy(&addr, &fn, 8);
+
+		EmitNop(5, code);
+		const size_t textPtr = code.length();
+		code.append(reinterpret_cast<const unsigned char*>(stmt.text.data()), stmt.text.length());
+		WriteJump(startPtr, code.length(), code);
+
+		EmitPushAllRegs(code);
+
+		EmitMov(Register::rax, addr, code);
+		EmitLea(Register::rdi, textPtr, code);
+		EmitMov(Register::rsi, stmt.text.length(), code);
+		EmitCall(Register::rax, code);
+
+		EmitPopAllRegs(code);
+
+		break;
+	}
+	case StatementTag::Push:
+		EmitPush(static_cast<const RegisterStatement&>(statement).reg, code);
+		break;
+	case StatementTag::Pop:
+		EmitPop(static_cast<const RegisterStatement&>(statement).reg, code);
+		break;
 	default:
 		return Error{"Statement not implemented in the compiler.", statement.pos};
 	}
+
+	if (statement.condition.has_value() && statement.tag != StatementTag::Branch)
+	{
+		WriteJump(conditionalJumpPtr, code.length(), statement.condition->comp, conditionalJumpInverted, code);
+	}
+	return Error::None;
 }
 
 [[nodiscard]] static Error CompileCondition(const Condition& condition, MachineCode& code, bool& inverted)
@@ -552,7 +648,20 @@ static void EmitMov(const Register dest, const int64_t value, MachineCode& code)
 	EmitImm64(value, code);
 }
 
-static void EmitMovStack(Register dest, int64_t stackOffset, MachineCode& code)
+static void EmitLea(const Register dest, const size_t to, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+
+	size_t from = code.length() + 7;
+	int32_t diff = static_cast<int32_t>(to) - static_cast<int32_t>(from);
+
+	EmitRexW(destval & 0x08, false, code);
+	code.push_back(0x8D);
+	EmitModRM(0b00, destval & 0x07, 5, code);
+	EmitImm32(diff, code);
+}
+
+static void EmitMovStack(const Register dest, const int64_t stackOffset, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 	int64_t disp = stackOffset * 8;
@@ -574,7 +683,7 @@ static void EmitMovStack(Register dest, int64_t stackOffset, MachineCode& code)
 	}
 }
 
-static void EmitMovStack(int64_t stackOffset, Register source, MachineCode& code)
+static void EmitMovStack(const int64_t stackOffset, const Register source, MachineCode& code)
 {
 	const uint8_t srcval = static_cast<uint8_t>(source);
 	int64_t disp = stackOffset * 8;
@@ -596,7 +705,7 @@ static void EmitMovStack(int64_t stackOffset, Register source, MachineCode& code
 	}
 }
 
-static void EmitAdd(Register dest, Register source, MachineCode& code)
+static void EmitAdd(const Register dest, const Register source, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 	const uint8_t srcval = static_cast<uint8_t>(source);
@@ -606,7 +715,7 @@ static void EmitAdd(Register dest, Register source, MachineCode& code)
 	EmitModRM(0b11, srcval & 0x07, destval & 0x07, code);
 }
 
-static void EmitAdd(Register dest, int64_t value, MachineCode& code)
+static void EmitAdd(const Register dest, const int64_t value, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 
@@ -634,7 +743,7 @@ static void EmitAdd(Register dest, int64_t value, MachineCode& code)
 	}
 }
 
-static void EmitSub(Register dest, Register source, MachineCode& code)
+static void EmitSub(const Register dest, const Register source, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 	const uint8_t srcval = static_cast<uint8_t>(source);
@@ -644,7 +753,7 @@ static void EmitSub(Register dest, Register source, MachineCode& code)
 	EmitModRM(0b11, srcval & 0x07, destval & 0x07, code);
 }
 
-static void EmitSub(Register dest, int64_t value, MachineCode& code)
+static void EmitSub(const Register dest, const int64_t value, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 
@@ -672,7 +781,121 @@ static void EmitSub(Register dest, int64_t value, MachineCode& code)
 	}
 }
 
-static void EmitImul(Register dest, Register source, MachineCode& code)
+static void EmitAnd(const Register dest, const Register source, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+	const uint8_t srcval = static_cast<uint8_t>(source);
+
+	EmitRexW(srcval & 0x08, destval & 0x08, code);
+	code.push_back(0x21);
+	EmitModRM(0b11, srcval & 0x07, destval & 0x07, code);
+}
+
+static void EmitAnd(const Register dest, const int64_t value, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+
+	if (value >= INT64_C(-128) && value <= INT64_C(127))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x83);
+		EmitModRM(0b11, 4, destval & 0x07, code);
+		EmitImm8(static_cast<int8_t>(value), code);
+	}
+	else if (value >= INT64_C(-2147483648) && value <= INT64_C(2147483647))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x81);
+		EmitModRM(0b11, 4, destval & 0x07, code);
+		EmitImm32(static_cast<int32_t>(value), code);
+	}
+	else
+	{
+		Register tmp = dest != Register::rax ? Register::rax : Register::rbx;
+		EmitMovStack(-1, tmp, code);
+		EmitMov(tmp, value, code);
+		EmitAnd(dest, tmp, code);
+		EmitMovStack(tmp, -1, code);
+	}
+}
+
+static void EmitOr(const Register dest, const Register source, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+	const uint8_t srcval = static_cast<uint8_t>(source);
+
+	EmitRexW(srcval & 0x08, destval & 0x08, code);
+	code.push_back(0x09);
+	EmitModRM(0b11, srcval & 0x07, destval & 0x07, code);
+}
+
+static void EmitOr(const Register dest, const int64_t value, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+
+	if (value >= INT64_C(-128) && value <= INT64_C(127))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x83);
+		EmitModRM(0b11, 1, destval & 0x07, code);
+		EmitImm8(static_cast<int8_t>(value), code);
+	}
+	else if (value >= INT64_C(-2147483648) && value <= INT64_C(2147483647))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x81);
+		EmitModRM(0b11, 1, destval & 0x07, code);
+		EmitImm32(static_cast<int32_t>(value), code);
+	}
+	else
+	{
+		Register tmp = dest != Register::rax ? Register::rax : Register::rbx;
+		EmitMovStack(-1, tmp, code);
+		EmitMov(tmp, value, code);
+		EmitOr(dest, tmp, code);
+		EmitMovStack(tmp, -1, code);
+	}
+}
+
+static void EmitXor(const Register dest, const Register source, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+	const uint8_t srcval = static_cast<uint8_t>(source);
+
+	EmitRexW(srcval & 0x08, destval & 0x08, code);
+	code.push_back(0x31);
+	EmitModRM(0b11, srcval & 0x07, destval & 0x07, code);
+}
+
+static void EmitXor(const Register dest, const int64_t value, MachineCode& code)
+{
+	const uint8_t destval = static_cast<uint8_t>(dest);
+
+	if (value >= INT64_C(-128) && value <= INT64_C(127))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x83);
+		EmitModRM(0b11, 6, destval & 0x07, code);
+		EmitImm8(static_cast<int8_t>(value), code);
+	}
+	else if (value >= INT64_C(-2147483648) && value <= INT64_C(2147483647))
+	{
+		EmitRexW(false, destval & 0x08, code);
+		code.push_back(0x81);
+		EmitModRM(0b11, 6, destval & 0x07, code);
+		EmitImm32(static_cast<int32_t>(value), code);
+	}
+	else
+	{
+		Register tmp = dest != Register::rax ? Register::rax : Register::rbx;
+		EmitMovStack(-1, tmp, code);
+		EmitMov(tmp, value, code);
+		EmitXor(dest, tmp, code);
+		EmitMovStack(tmp, -1, code);
+	}
+}
+
+static void EmitImul(const Register dest, const Register source, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 	const uint8_t srcval = static_cast<uint8_t>(source);
@@ -683,7 +906,7 @@ static void EmitImul(Register dest, Register source, MachineCode& code)
 	EmitModRM(0b11, destval & 0x07, srcval & 0x07, code);
 }
 
-static void EmitImul(Register dest, Register source, int64_t value, MachineCode& code)
+static void EmitImul(const Register dest, const Register source, const int64_t value, MachineCode& code)
 {
 	const uint8_t destval = static_cast<uint8_t>(dest);
 	const uint8_t srcval = static_cast<uint8_t>(source);

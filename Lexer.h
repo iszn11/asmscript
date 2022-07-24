@@ -58,39 +58,45 @@ enum class TokenTag {
 	KeyVal,
 	KeyVar,
 
-	BracketOpen,   // [
-	BracketClose,  // ]
-	ParenOpen,     // (
-	ParenClose,    // )
-	BraceOpen,     // {
-	BraceClose,    // }
+	BracketOpen,     // [
+	BracketClose,    // ]
+	ParenOpen,       // (
+	ParenClose,      // )
+	BraceOpen,       // {
+	BraceClose,      // }
 
-	Plus,          // +
-	Minus,         // -
-	Star,          // *
-	Slash,         // /
-	Percent,       // %
+	Plus,            // +
+	Minus,           // -
+	Star,            // *
+	Slash,           // /
+	Percent,         // %
+	Ampersand,       // &
+	Pipe,            // |
+	Caret,           // ^
 
-	PlusEquals,    // +=
-	MinusEquals,   // -=
-	StarEquals,    // *=
-	SlashEquals,   // /=
-	PercentEquals, // %=
+	PlusEquals,      // +=
+	MinusEquals,     // -=
+	StarEquals,      // *=
+	SlashEquals,     // /=
+	PercentEquals,   // %=
+	AmpersandEquals, // &=
+	PipeEquals,      // |=
+	CaretEquals,     // ^=
 
-	Equals,        // =
+	Equals,          // =
 
-	LessThan,      // <
-	GreaterThan,   // >
-	LessEquals,    // <=
-	GreaterEquals, // >=
-	EqualsEquals,  // ==
-	NotEquals,     // !=
+	LessThan,        // <
+	GreaterThan,     // >
+	LessEquals,      // <=
+	GreaterEquals,   // >=
+	EqualsEquals,    // ==
+	NotEquals,       // !=
 
-	Hash,          // #
-	Shl,           // <<
-	Shr,           // >>
-	Comma,         // ,
-	Semicolon,     // ;
+	Hash,            // #
+	Shl,             // <<
+	Shr,             // >>
+	Comma,           // ,
+	Semicolon,       // ;
 
 	Number,
 	Identifier,

@@ -162,11 +162,17 @@ static void PrintLexResults(const std::string_view filePrefix, const std::vector
 			case TokenTag::Star: std::cout << "Star"; break;
 			case TokenTag::Slash: std::cout << "Slash"; break;
 			case TokenTag::Percent: std::cout << "Percent"; break;
+			case TokenTag::Ampersand: std::cout << "Ampersand"; break;
+			case TokenTag::Pipe: std::cout << "Pipe"; break;
+			case TokenTag::Caret: std::cout << "Caret"; break;
 			case TokenTag::PlusEquals: std::cout << "PlusEquals"; break;
 			case TokenTag::MinusEquals: std::cout << "MinusEquals"; break;
 			case TokenTag::StarEquals: std::cout << "StarEquals"; break;
 			case TokenTag::SlashEquals: std::cout << "SlashEquals"; break;
 			case TokenTag::PercentEquals: std::cout << "PercentEquals"; break;
+			case TokenTag::AmpersandEquals: std::cout << "AmpersandEquals"; break;
+			case TokenTag::PipeEquals: std::cout << "PipeEquals"; break;
+			case TokenTag::CaretEquals: std::cout << "CaretEquals"; break;
 			case TokenTag::Equals: std::cout << "Equals"; break;
 			case TokenTag::LessThan: std::cout << "LessThan"; break;
 			case TokenTag::GreaterThan: std::cout << "GreaterThan"; break;
@@ -206,8 +212,10 @@ static void PrintCompileResults(const std::basic_string<unsigned char>& machineC
 	printf("Entry point is at 0x%016zX\n", entry);
 	printf(
 		"Runtime library function would be at:\n"
-		"\t0x%016zX: void RtPrint(int64_t)\n",
-		(size_t)(&RtPrint)
+		"\t0x%016zX: void RtPrint(int64_t)\n"
+		"\t0x%016zX: void RtPrint(const char*, size_t)\n",
+		(size_t)(void (*)(int64_t))(&RtPrint),
+		(size_t)(void (*)(const char*, size_t))(&RtPrint)
 	);
 
 	for (const unsigned char c : machineCode)
@@ -372,6 +380,42 @@ static void PrintStatements(const std::string_view filePrefix, const std::vector
 			}
 			break;
 		}
+		case StatementTag::StdoutText:
+		{
+			auto stmt = static_cast<StdoutTextStatement*>(statement.get());
+			std::cout << "StdoutText ";
+			std::cout << stmt->text;
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Push:
+		{
+			auto stmt = static_cast<RegisterStatement*>(statement.get());
+			std::cout << "Push ";
+			PrintRegister(stmt->reg);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
+		case StatementTag::Pop:
+		{
+			auto stmt = static_cast<RegisterStatement*>(statement.get());
+			std::cout << "Pop ";
+			PrintRegister(stmt->reg);
+			if (stmt->condition.has_value())
+			{
+				std::cout << " if ";
+				PrintCondition(*stmt->condition);
+			}
+			break;
+		}
 		}
 		std::cout << '\n';
 	}
@@ -408,6 +452,9 @@ static void PrintOperation(const Operation op)
 		case Operation::Mul: std::cout << '*'; break;
 		case Operation::Div: std::cout << '/'; break;
 		case Operation::Mod: std::cout << '%'; break;
+		case Operation::And: std::cout << '&'; break;
+		case Operation::Or: std::cout << '|'; break;
+		case Operation::Xor: std::cout << '^'; break;
 	}
 }
 

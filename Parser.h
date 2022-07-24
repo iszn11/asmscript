@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -21,6 +22,9 @@ enum class StatementTag {
 	Return,     // Statement
 	Call,       // CallStatement
 	Stdout,     // StdoutStatement
+	StdoutText, // StdoutTextStatement
+	Push,       // RegisterStatement
+	Pop,        // RegisterStatement
 };
 
 enum class OperandTag {
@@ -52,6 +56,9 @@ enum class Operation {
 	Mul,
 	Div,
 	Mod,
+	And,
+	Or,
+	Xor,
 };
 
 enum class Comparison : uint8_t {
@@ -146,10 +153,22 @@ struct StdoutStatement : public Statement {
 	StdoutStatement(std::unique_ptr<Operand> source, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Stdout, pos, std::move(condition)}, source{std::move(source)} {}
 };
 
+struct StdoutTextStatement : public Statement {
+	std::string text;
+
+	StdoutTextStatement(std::string text, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::StdoutText, pos, std::move(condition)}, text{std::move(text)} {}
+};
+
 struct CallStatement : public Statement {
 	std::string name;
 
 	CallStatement(std::string name, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Call, pos, std::move(condition)}, name{std::move(name)} {}
+};
+
+struct RegisterStatement : public Statement {
+	Register reg;
+
+	RegisterStatement(const StatementTag tag, const Register reg, std::optional<Condition> condition, const CodePos pos) : Statement{tag, pos, std::move(condition)}, reg{reg} {}
 };
 
 struct Token;

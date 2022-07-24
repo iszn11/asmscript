@@ -152,17 +152,20 @@ static bool IsDigit(char c);
 			const uint16_t val = (codePtr[0] << 8) | codePtr[1];
 			switch (val)
 			{
-				case 0x2B3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PlusEquals, codePtr.pos));    codePtr += 2; continue;
-				case 0x2D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::MinusEquals, codePtr.pos));   codePtr += 2; continue;
-				case 0x2A3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::StarEquals, codePtr.pos));    codePtr += 2; continue;
-				case 0x2F3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::SlashEquals, codePtr.pos));   codePtr += 2; continue;
-				case 0x253D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PercentEquals, codePtr.pos)); codePtr += 2; continue;
-				case 0x3C3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::LessEquals, codePtr.pos));    codePtr += 2; continue;
-				case 0x3E3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::GreaterEquals, codePtr.pos)); codePtr += 2; continue;
-				case 0x3D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::EqualsEquals, codePtr.pos));  codePtr += 2; continue;
-				case 0x213D: tokens.emplace_back(std::make_unique<Token>(TokenTag::NotEquals, codePtr.pos));     codePtr += 2; continue;
-				case 0x3C3C: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shl, codePtr.pos));           codePtr += 2; continue;
-				case 0x3E3E: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shr, codePtr.pos));           codePtr += 2; continue;
+				case 0x2B3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PlusEquals, codePtr.pos));      codePtr += 2; continue;
+				case 0x2D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::MinusEquals, codePtr.pos));     codePtr += 2; continue;
+				case 0x2A3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::StarEquals, codePtr.pos));      codePtr += 2; continue;
+				case 0x2F3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::SlashEquals, codePtr.pos));     codePtr += 2; continue;
+				case 0x253D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PercentEquals, codePtr.pos));   codePtr += 2; continue;
+				case 0x263D: tokens.emplace_back(std::make_unique<Token>(TokenTag::AmpersandEquals, codePtr.pos)); codePtr += 2; continue;
+				case 0x7C3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::PipeEquals, codePtr.pos));      codePtr += 2; continue;
+				case 0x5E3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::CaretEquals, codePtr.pos));     codePtr += 2; continue;
+				case 0x3C3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::LessEquals, codePtr.pos));      codePtr += 2; continue;
+				case 0x3E3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::GreaterEquals, codePtr.pos));   codePtr += 2; continue;
+				case 0x3D3D: tokens.emplace_back(std::make_unique<Token>(TokenTag::EqualsEquals, codePtr.pos));    codePtr += 2; continue;
+				case 0x213D: tokens.emplace_back(std::make_unique<Token>(TokenTag::NotEquals, codePtr.pos));       codePtr += 2; continue;
+				case 0x3C3C: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shl, codePtr.pos));             codePtr += 2; continue;
+				case 0x3E3E: tokens.emplace_back(std::make_unique<Token>(TokenTag::Shr, codePtr.pos));             codePtr += 2; continue;
 			}
 		}
 
@@ -181,6 +184,9 @@ static bool IsDigit(char c);
 			case '*': tokens.emplace_back(std::make_unique<Token>(TokenTag::Star, codePtr.pos));         codePtr += 1; continue;
 			case '/': tokens.emplace_back(std::make_unique<Token>(TokenTag::Slash, codePtr.pos));        codePtr += 1; continue;
 			case '%': tokens.emplace_back(std::make_unique<Token>(TokenTag::Percent, codePtr.pos));      codePtr += 1; continue;
+			case '&': tokens.emplace_back(std::make_unique<Token>(TokenTag::Ampersand, codePtr.pos));    codePtr += 1; continue;
+			case '|': tokens.emplace_back(std::make_unique<Token>(TokenTag::Pipe, codePtr.pos));         codePtr += 1; continue;
+			case '^': tokens.emplace_back(std::make_unique<Token>(TokenTag::Caret, codePtr.pos));        codePtr += 1; continue;
 			case '=': tokens.emplace_back(std::make_unique<Token>(TokenTag::Equals, codePtr.pos));       codePtr += 1; continue;
 			case '<': tokens.emplace_back(std::make_unique<Token>(TokenTag::LessThan, codePtr.pos));     codePtr += 1; continue;
 			case '>': tokens.emplace_back(std::make_unique<Token>(TokenTag::GreaterThan, codePtr.pos));  codePtr += 1; continue;

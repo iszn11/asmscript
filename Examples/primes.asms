@@ -1,10 +1,12 @@
 proc prime_test {
 	rbx = 2;
 	loop {
-		rcx = rbx * rbx;
-		break if rcx > rax;
+		r8 = rbx;
+		r8 *= rbx;
+		break if r8 > rax;
 
-		rdx = rax % rax;
+		rdx = rax;
+		rdx %= rbx;
 		return if rdx == 0;
 
 		rbx += 1;
@@ -15,7 +17,7 @@ proc prime_test {
 
 proc main {
 	rax = 2;
-	loop (rax <= 1000) {
+	loop (rax <= 100) {
 		prime_test;
 		rax += 1;
 	}

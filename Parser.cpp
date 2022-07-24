@@ -29,6 +29,8 @@ static CodePos GetPos();
 [[nodiscard]] static Error ParseReturn(Statements& statements);
 [[nodiscard]] static Error ParseCall(Statements& statements);
 [[nodiscard]] static Error ParseStdout(Statements& statements);
+[[nodiscard]] static Error ParsePush(Statements& statements);
+[[nodiscard]] static Error ParsePop(Statements& statements);
 
 [[nodiscard]] Error Parse(std::vector<std::unique_ptr<Token>>& tokens, std::unordered_map<std::string, Statements>& procedures)
 {
@@ -254,6 +256,12 @@ static CodePos GetPos()
 	error = ParseStdout(statements);
 	if (error || parserSuccess) return error;
 
+	error = ParsePush(statements);
+	if (error || parserSuccess) return error;
+
+	error = ParsePop(statements);
+	if (error || parserSuccess) return error;
+
 	parserSuccess = false;
 	return Error::None;
 }
@@ -277,8 +285,11 @@ static CodePos GetPos()
 		case TokenTag::StarEquals: op = Operation::Mul; break;
 		case TokenTag::SlashEquals: op = Operation::Div; break;
 		case TokenTag::PercentEquals: op = Operation::Mod; break;
+		case TokenTag::AmpersandEquals: op = Operation::And; break;
+		case TokenTag::PipeEquals: op = Operation::Or; break;
+		case TokenTag::CaretEquals: op = Operation::Xor; break;
 		default:
-			return Error{"Expected =, +=, -=, *=, /= or %=.", GetPos()};
+			return Error{"Expected =, +=, -=, *=, /=, %=, &=, |= or ^=.", GetPos()};
 	}
 	tokenPtr += 1;
 
@@ -320,8 +331,11 @@ static CodePos GetPos()
 		case TokenTag::Star: op = Operation::Mul; break;
 		case TokenTag::Slash: op = Operation::Div; break;
 		case TokenTag::Percent: op = Operation::Mod; break;
+		case TokenTag::Ampersand: op = Operation::And; break;
+		case TokenTag::Pipe: op = Operation::Or; break;
+		case TokenTag::Caret: op = Operation::Xor; break;
 		default:
-			return Error{"Expected ;, +, -, *, / or %.", GetPos()};
+			return Error{"Expected ;, +, -, *, /, %, &, | or ^.", GetPos()};
 	}
 	tokenPtr += 1;
 
@@ -559,8 +573,20 @@ static CodePos GetPos()
 		return Error::None;
 	}
 
+	bool isText = false;
+	const std::string* text;
 	std::unique_ptr<Operand> source;
-	TRY(ParseOperand(source));
+
+	if (IsToken(TokenTag::String))
+	{
+		isText = true;
+		text = &GetToken<StringToken>()->value;
+		tokenPtr += 1;
+	}
+	else
+	{
+		TRY(ParseOperand(source));
+	}
 
 	std::optional<Condition> condition;
 	if (EatToken(TokenTag::KeyIf))
@@ -574,6 +600,79 @@ static CodePos GetPos()
 	}
 
 	parserSuccess = true;
-	statements.emplace_back(std::make_unique<StdoutStatement>(std::move(source), std::move(condition), pos));
+	if (isText)
+	{
+		statements.emplace_back(std::make_unique<StdoutTextStatement>(*text, std::move(condition), pos));
+	}
+	else
+	{
+		statements.emplace_back(std::make_unique<StdoutStatement>(std::move(source), std::move(condition), pos));
+	}
+	return Error::None;
+}
+
+[[nodiscard]] static Error ParsePush(Statements& statements)
+{
+	const CodePos pos = GetPos();
+
+	if (!EatToken(TokenTag::KeyPush))
+	{
+		parserSuccess = false;
+		return Error::None;
+	}
+
+	Register reg;
+	TRY(ParseRegister(reg));
+	if (!parserSuccess)
+	{
+		return Error{"Expected register.", GetPos()};
+	}
+
+	std::optional<Condition> condition;
+	if (EatToken(TokenTag::KeyIf))
+	{
+		TRY(ParseCondition(condition));
+	}
+
+	if (!EatToken(TokenTag::Semicolon))
+	{
+		return Error{"Expected ;.", GetPos()};
+	}
+
+	parserSuccess = true;
+	statements.emplace_back(std::make_unique<RegisterStatement>(StatementTag::Push, reg, std::move(condition), pos));
+	return Error::None;
+}
+
+[[nodiscard]] static Error ParsePop(Statements& statements)
+{
+	const CodePos pos = GetPos();
+
+	if (!EatToken(TokenTag::KeyPop))
+	{
+		parserSuccess = false;
+		return Error::None;
+	}
+
+	Register reg;
+	TRY(ParseRegister(reg));
+	if (!parserSuccess)
+	{
+		return Error{"Expected register.", GetPos()};
+	}
+
+	std::optional<Condition> condition;
+	if (EatToken(TokenTag::KeyIf))
+	{
+		TRY(ParseCondition(condition));
+	}
+
+	if (!EatToken(TokenTag::Semicolon))
+	{
+		return Error{"Expected ;.", GetPos()};
+	}
+
+	parserSuccess = true;
+	statements.emplace_back(std::make_unique<RegisterStatement>(StatementTag::Pop, reg, std::move(condition), pos));
 	return Error::None;
 }

@@ -18,6 +18,7 @@ static CodePos GetPos();
 [[nodiscard]] static Error ParseProcedure(std::string& name, Statements& statements);
 [[nodiscard]] static Error ParseCondition(std::optional<Condition>& condition);
 [[nodiscard]] static Error ParseOperand(std::unique_ptr<Operand>& operand);
+[[nodiscard]] static Error ParseDestination(std::unique_ptr<Destination>& dest);
 [[nodiscard]] static Error ParseRegister(Register& reg);
 
 [[nodiscard]] static Error ParseStatement(Statements& statements);
@@ -194,11 +195,43 @@ static CodePos GetPos()
 			}
 			operand = std::make_unique<ImmediateOperand>(-GetToken<NumberToken>()->value, pos); break;
 		}
+		case TokenTag::Identifier: operand = std::make_unique<VariableOperand>(GetToken<IdentifierToken>()->name, pos); break;
 		default:
-			return Error{"Unrecognized operand, expected register or immediate value.", pos};
+			return Error{"Unrecognized operand, expected register, variable name or immediate value.", pos};
 	}
 	tokenPtr += 1;
 
+	return Error::None;
+}
+
+[[nodiscard]] static Error ParseDestination(std::unique_ptr<Destination>& dest)
+{
+	const CodePos pos = GetPos();
+	switch (GetTag())
+	{
+		case TokenTag::RegRax: dest = std::make_unique<RegisterDestination>(Register::rax, pos); break;
+		case TokenTag::RegRbx: dest = std::make_unique<RegisterDestination>(Register::rbx, pos); break;
+		case TokenTag::RegRcx: dest = std::make_unique<RegisterDestination>(Register::rcx, pos); break;
+		case TokenTag::RegRdx: dest = std::make_unique<RegisterDestination>(Register::rdx, pos); break;
+		case TokenTag::RegRsi: dest = std::make_unique<RegisterDestination>(Register::rsi, pos); break;
+		case TokenTag::RegRdi: dest = std::make_unique<RegisterDestination>(Register::rdi, pos); break;
+		case TokenTag::RegRbp: dest = std::make_unique<RegisterDestination>(Register::rbp, pos); break;
+		case TokenTag::RegR8: dest = std::make_unique<RegisterDestination>(Register::r8, pos); break;
+		case TokenTag::RegR9: dest = std::make_unique<RegisterDestination>(Register::r9, pos); break;
+		case TokenTag::RegR10: dest = std::make_unique<RegisterDestination>(Register::r10, pos); break;
+		case TokenTag::RegR11: dest = std::make_unique<RegisterDestination>(Register::r11, pos); break;
+		case TokenTag::RegR12: dest = std::make_unique<RegisterDestination>(Register::r12, pos); break;
+		case TokenTag::RegR13: dest = std::make_unique<RegisterDestination>(Register::r13, pos); break;
+		case TokenTag::RegR14: dest = std::make_unique<RegisterDestination>(Register::r14, pos); break;
+		case TokenTag::RegR15: dest = std::make_unique<RegisterDestination>(Register::r15, pos); break;
+		case TokenTag::Identifier: dest = std::make_unique<VariableDestination>(GetToken<VariableOperand>()->name, pos); break;
+		default:
+			parserSuccess = false;
+			return Error::None;
+	}
+	tokenPtr += 1;
+
+	parserSuccess = true;
 	return Error::None;
 }
 
@@ -274,8 +307,10 @@ static CodePos GetPos()
 {
 	const CodePos pos = GetPos();
 
-	Register dest;
-	Error error = ParseRegister(dest);
+	std::unique_ptr<Token>* startPtr = tokenPtr;
+
+	std::unique_ptr<Destination> dest;
+	Error error = ParseDestination(dest);
 	if (!parserSuccess) return error;
 
 	Operation op;
@@ -293,7 +328,16 @@ static CodePos GetPos()
 		case TokenTag::PipeEquals: op = Operation::Or; break;
 		case TokenTag::CaretEquals: op = Operation::Xor; break;
 		default:
+		{
+			if (dest->tag == DestinationTag::Variable)
+			{
+				// Could be a procedure call
+				tokenPtr = startPtr;
+				parserSuccess = false;
+				return Error::None;
+			}
 			return Error{"Expected =, +=, -=, *=, /=, %=, &=, |= or ^=.", GetPos()};
+		}
 	}
 	tokenPtr += 1;
 
@@ -311,11 +355,11 @@ static CodePos GetPos()
 		parserSuccess = true;
 		if (isShorthand)
 		{
-			statements.emplace_back(std::make_unique<ShorthandStatement>(dest, op, std::move(sourceA), std::move(condition), pos));
+			statements.emplace_back(std::make_unique<ShorthandStatement>(std::move(dest), op, std::move(sourceA), std::move(condition), pos));
 		}
 		else
 		{
-			statements.emplace_back(std::make_unique<AssignmentStatement>(dest, std::move(sourceA), std::move(condition), pos));
+			statements.emplace_back(std::make_unique<AssignmentStatement>(std::move(dest), std::move(sourceA), std::move(condition), pos));
 		}
 		return Error::None;
 	}
@@ -357,7 +401,7 @@ static CodePos GetPos()
 	}
 
 	parserSuccess = true;
-	statements.emplace_back(std::make_unique<LonghandStatement>(dest, op, std::move(sourceA), std::move(sourceB), std::move(condition), pos));
+	statements.emplace_back(std::make_unique<LonghandStatement>(std::move(dest), op, std::move(sourceA), std::move(sourceB), std::move(condition), pos));
 	return Error::None;
 }
 
@@ -559,7 +603,17 @@ static CodePos GetPos()
 
 	if (!EatToken(TokenTag::Semicolon))
 	{
-		return Error{"Expected ;.", GetPos()};
+		if (condition.has_value())
+		{
+			return Error{"Expected ;.", GetPos()};
+		}
+		else
+		{
+			// Could be a variable assignment
+			tokenPtr -= 1;
+			parserSuccess = false;
+			return Error::None;
+		}
 	}
 
 	parserSuccess = true;

@@ -61,3 +61,15 @@ proc other_procedure {
 }
 
 proc empty_procedure {}
+
+proc proc_with_variables {
+	var a, b, c;
+
+	this_a_call;
+	call_with_cond if a > b;
+
+	a = 0;
+	a += b;
+	a = b + c;
+	a = b & c if a > b;
+}

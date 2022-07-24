@@ -10,6 +10,34 @@
 using MachineCode = std::basic_string<unsigned char>;
 using Statements = std::vector<std::unique_ptr<Statement>>;
 
+struct ResolvedOperand
+{
+	OperandTag tag;
+	union
+	{
+		Register reg;
+		int64_t value;
+		int64_t stackOffset;
+	};
+
+	static ResolvedOperand Register(Register reg) { ResolvedOperand ret; ret.tag = OperandTag::Register, ret.reg = reg; return ret; }
+	static ResolvedOperand Immediate(int64_t value) { ResolvedOperand ret; ret.tag = OperandTag::Immediate, ret.value = value; return ret; }
+	static ResolvedOperand Variable(int64_t stackOffset) { ResolvedOperand ret; ret.tag = OperandTag::Variable, ret.stackOffset = stackOffset; return ret; }
+};
+
+struct ResolvedDestination
+{
+	DestinationTag tag;
+	union
+	{
+		Register reg;
+		int64_t stackOffset;
+	};
+
+	static ResolvedDestination Register(Register reg) { ResolvedDestination ret; ret.tag = DestinationTag::Register, ret.reg = reg; return ret; }
+	static ResolvedDestination Variable(int64_t stackOffset) { ResolvedDestination ret; ret.tag = DestinationTag::Variable, ret.stackOffset = stackOffset; return ret; }
+};
+
 [[nodiscard]] static Error CompileProcedure(const Statements& statements, MachineCode& code, std::unordered_map<size_t, std::string>& callTable);
 [[nodiscard]] static Error CompileStatement(const Statement& statement, MachineCode& code, std::unordered_map<size_t, std::string>& callTable);
 [[nodiscard]] static Error CompileCondition(const Condition& condition, MachineCode& code, bool& inverted);
@@ -150,10 +178,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 		switch (stmt.source->tag)
 		{
 			case OperandTag::Register:
-				EmitMov(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+				switch (stmt.dest->tag)
+				{
+					case DestinationTag::Register:
+						EmitMov(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						break;
+					default:
+						return Error{"Unsupported destination argument type", statement.pos};
+				}
 				break;
 			case OperandTag::Immediate:
-				EmitMov(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+				switch (stmt.dest->tag)
+				{
+					case DestinationTag::Register:
+						EmitMov(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						break;
+					default:
+						return Error{"Unsupported destination argument type", statement.pos};
+				}
 				break;
 			default:
 				return Error{"Unsopported source argument type.", statement.pos};
@@ -169,10 +211,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitAdd(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitAdd(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitAdd(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitAdd(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
@@ -182,10 +238,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitSub(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitSub(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitSub(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitSub(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
@@ -195,10 +265,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitImul(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitImul(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitImul(stmt.dest, stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitImul(static_cast<const RegisterDestination&>(*stmt.dest).reg, stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
@@ -312,10 +396,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitAnd(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitAnd(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitAnd(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitAnd(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
@@ -325,10 +423,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitOr(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitOr(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitOr(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitOr(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};
@@ -338,10 +450,24 @@ static std::unordered_map<std::string, size_t> procVariables;
 				switch (stmt.source->tag)
 				{
 					case OperandTag::Register:
-						EmitXor(stmt.dest, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitXor(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const RegisterOperand&>(*stmt.source).reg, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					case OperandTag::Immediate:
-						EmitXor(stmt.dest, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+						switch (stmt.dest->tag)
+						{
+							case DestinationTag::Register:
+								EmitXor(static_cast<const RegisterDestination&>(*stmt.dest).reg, static_cast<const ImmediateOperand&>(*stmt.source).value, code);
+								break;
+							default:
+								return Error{"Unsupported destination argument type", statement.pos};
+						}
 						break;
 					default:
 						return Error{"Unsopported source argument type.", statement.pos};

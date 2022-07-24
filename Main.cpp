@@ -22,6 +22,7 @@ static void PrintRegister(Register reg);
 static void PrintOperation(Operation op);
 static void PrintCondition(const Condition& condition);
 static void PrintOperand(const Operand& operand);
+static void PrintDestination(const Destination& dest);
 
 static bool flag_dumpTokens = false;
 static bool flag_dumpAst = false;
@@ -258,7 +259,7 @@ static void PrintStatements(const std::string_view filePrefix, const std::vector
 		{
 			auto stmt = static_cast<AssignmentStatement*>(statement.get());
 			std::cout << "Assignment ";
-			PrintRegister(stmt->dest);
+			PrintDestination(*stmt->dest);
 			std::cout << " = ";
 			PrintOperand(*stmt->source);
 			if (stmt->condition.has_value())
@@ -272,7 +273,7 @@ static void PrintStatements(const std::string_view filePrefix, const std::vector
 		{
 			auto stmt = static_cast<ShorthandStatement*>(statement.get());
 			std::cout << "Shorthand ";
-			PrintRegister(stmt->dest);
+			PrintDestination(*stmt->dest);
 			std::cout << ' ';
 			PrintOperation(stmt->op);
 			std::cout << "= ";
@@ -288,7 +289,7 @@ static void PrintStatements(const std::string_view filePrefix, const std::vector
 		{
 			auto stmt = static_cast<LonghandStatement*>(statement.get());
 			std::cout << "Longhand ";
-			PrintRegister(stmt->dest);
+			PrintDestination(*stmt->dest);
 			std::cout << " = ";
 			PrintOperand(*stmt->sourceA);
 			std::cout << ' ';
@@ -489,5 +490,15 @@ static void PrintOperand(const Operand& operand)
 	{
 		case OperandTag::Register: PrintRegister(static_cast<const RegisterOperand&>(operand).reg); break;
 		case OperandTag::Immediate: std::cout << static_cast<const ImmediateOperand&>(operand).value; break;
+		case OperandTag::Variable: std::cout << static_cast<const VariableOperand&>(operand).name; break;
+	}
+}
+
+static void PrintDestination(const Destination& dest)
+{
+	switch (dest.tag)
+	{
+		case DestinationTag::Register: PrintRegister(static_cast<const RegisterDestination&>(dest).reg); break;
+		case DestinationTag::Variable: std::cout << static_cast<const VariableDestination&>(dest).name; break;
 	}
 }

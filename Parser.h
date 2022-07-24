@@ -31,6 +31,12 @@ enum class StatementTag {
 enum class OperandTag {
 	Register,
 	Immediate,
+	Variable,
+};
+
+enum class DestinationTag {
+	Register,
+	Variable,
 };
 
 enum class Register : uint8_t {
@@ -93,6 +99,34 @@ struct ImmediateOperand : public Operand {
 	ImmediateOperand(const int64_t value, const CodePos pos) : Operand{OperandTag::Immediate, pos}, value{value} {}
 };
 
+struct VariableOperand : public Operand {
+	std::string name;
+
+	VariableOperand(std::string name, const CodePos pos) : Operand{OperandTag::Variable, pos}, name{std::move(name)} {}
+};
+
+struct Destination {
+	DestinationTag tag;
+	CodePos pos;
+
+	Destination(const DestinationTag tag, const CodePos pos) : tag{tag}, pos{pos} {}
+	virtual ~Destination() = 0;
+};
+
+inline Destination::~Destination() {}
+
+struct RegisterDestination : public Destination {
+	Register reg;
+
+	RegisterDestination(const Register reg, const CodePos pos) : Destination{DestinationTag::Register, pos}, reg{reg} {}
+};
+
+struct VariableDestination : public Destination {
+	std::string name;
+
+	VariableDestination(std::string name, const CodePos pos) : Destination{DestinationTag::Variable, pos}, name{std::move(name)} {}
+};
+
 struct Condition {
 	std::unique_ptr<Operand> a;
 	std::unique_ptr<Operand> b;
@@ -112,27 +146,27 @@ struct Statement {
 };
 
 struct AssignmentStatement : public Statement {
-	Register dest;
+	std::unique_ptr<Destination> dest;
 	std::unique_ptr<Operand> source;
 
-	AssignmentStatement(const Register dest, std::unique_ptr<Operand> source, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Assignment, pos, std::move(condition)}, dest{dest}, source{std::move(source)} {}
+	AssignmentStatement(std::unique_ptr<Destination> dest, std::unique_ptr<Operand> source, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Assignment, pos, std::move(condition)}, dest{std::move(dest)}, source{std::move(source)} {}
 };
 
 struct ShorthandStatement : public Statement {
-	Register dest;
+	std::unique_ptr<Destination> dest;
 	Operation op;
 	std::unique_ptr<Operand> source;
 
-	ShorthandStatement(const Register dest, const Operation op, std::unique_ptr<Operand> source, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Shorthand, pos, std::move(condition)}, dest{dest}, op{op}, source{std::move(source)} {}
+	ShorthandStatement(std::unique_ptr<Destination> dest, const Operation op, std::unique_ptr<Operand> source, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Shorthand, pos, std::move(condition)}, dest{std::move(dest)}, op{op}, source{std::move(source)} {}
 };
 
 struct LonghandStatement : public Statement {
-	Register dest;
+	std::unique_ptr<Destination> dest;
 	Operation op;
 	std::unique_ptr<Operand> sourceA;
 	std::unique_ptr<Operand> sourceB;
 
-	LonghandStatement(const Register dest, const Operation op, std::unique_ptr<Operand> sourceA, std::unique_ptr<Operand> sourceB, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Longhand, pos, std::move(condition)}, dest{dest}, op{op}, sourceA{std::move(sourceA)}, sourceB{std::move(sourceB)} {}
+	LonghandStatement(std::unique_ptr<Destination> dest, const Operation op, std::unique_ptr<Operand> sourceA, std::unique_ptr<Operand> sourceB, std::optional<Condition> condition, const CodePos pos) : Statement{StatementTag::Longhand, pos, std::move(condition)}, dest{std::move(dest)}, op{op}, sourceA{std::move(sourceA)}, sourceB{std::move(sourceB)} {}
 };
 
 struct LoopStatement : public Statement {

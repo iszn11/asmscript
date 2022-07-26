@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-US">
+	<head>
+		<meta charset="utf-8">
+		<title>asmscript (asms) documentation</title>
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<main>
+			<h1><a href="index.html">asmscript</a></h1>
+			<nav>
+				<ul>
+					<li><a href="index.html">Overview</a></li>
+					<li><a href="operands.html">Operands</a></li>
+					<li><a href="procedures.html">Procedures</a></li>
+					<li><a href="statements.html">Statements</a></li>
+					<li><a href="conditions.html">Conditions</a></li>
+					<li><a href="conditionals.html">Conditionals</a></li>
+				</ul>
+			</nav>
+			<h2>Procedures</h2>
+			<p>There is only one construct that can exist at the top-level of an asms file - procedure declaration. A procedure has a unique name and contains a block of statements.</p>
+<pre><span class="kw">proc</span> <span class="fn">NAME</span> {
+    STATEMENTS
+}</pre>
+			<p>You don't specify arguments or return types for procedures. It is up to you to decide how you will pass arguments and return values. In other words, you are responsible for defining and following your own calling convention.</p>
+			<p>A procedure name cannot be a reserved keyword and has to satisfy this regular expression:<br>[_a-zA-Z][_a-zA-Z0-9]*<br>Procedure named "main" is special and is considered the entry point. You must have a procedure named "main" in your program.</p>
+			<p>You can call a procedure using a call statement, which will emit a "call" instruction. A "ret" instruction is placed at the end (and also at every return statement), so you don't have to use a return statement if you don't need to.</p>
+			<h2>Entry point</h2>
+			<p>main isn't actually the <em>true</em> entry point. Right before calling main, every register you have access to is pushed on the stack, and then popped after main returns. This ensures that you can use registers in your code as you wish without worrying about breaking the calling convention of the JIT compiler.</p>
+		</main>
+	</body>
+</html>

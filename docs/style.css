@@ -1,0 +1,96 @@
+html, body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	color: black;
+	background-color: white;
+	font-size: 20px;
+	font-family: 'Cascadia Mono', 'FiraGO', 'Fira Mono', Consolas, 'Courier New', 'Liberation Mono', monospace;
+}
+
+main {
+	margin: 0 auto;
+	max-width: 800px;
+}
+
+h1 {
+	margin: 16px 0;
+	font-size: 32px;
+	font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+}
+
+h1 a:link, h1 a:active, h1 a:visited, h1 a:hover {
+	text-decoration: none;
+}
+
+a:link, a:active, a:visited {
+	color: inherit;
+	text-decoration: underline dotted;
+}
+
+h2 {
+	margin: 32px 0 8px;
+	font-size: 24px;
+	font-family: Arial, Helvetica, 'Liberation Sans', sans-serif;
+}
+
+p {
+	margin: 8px 0;
+}
+
+ul {
+	margin: 8px 0;
+}
+
+pre .kw {
+	color: #af00db;
+}
+
+pre .fn {
+	color: #795e26;
+}
+
+pre .num {
+	color: #098658;
+}
+
+pre .comm {
+	color: #008000;
+}
+
+pre .str {
+	color: #a31515;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #d4d4d4;
+		background-color: #1E1E1E;
+	}
+
+	pre .kw {
+		color: #c586c0;
+	}
+
+	pre .fn {
+		color: #dcdcaa;
+	}
+
+	pre .num {
+		color: #b5cea8;
+	}
+
+	pre .comm {
+		color: #6a9955;
+	}
+
+	pre .str {
+		color: #ce9178;
+	}
+	
+	pre .reg {
+		color: #9cdcfe;
+	}
+}

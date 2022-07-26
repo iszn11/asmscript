@@ -3,8 +3,78 @@
 	<head>
 		<meta charset="utf-8">
 		<title>asmscript (asms) documentation</title>
+		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
-		Hi! The documentation is still work-in-progress.
+		<main>
+			<h1><a href="index.html">asmscript</a></h1>
+			<nav>
+				<ul>
+					<li><a href="index.html">Overview</a></li>
+					<li><a href="operands.html">Operands</a></li>
+					<li><a href="procedures.html">Procedures</a></li>
+					<li><a href="statements.html">Statements</a></li>
+					<li><a href="conditions.html">Conditions</a></li>
+					<li><a href="conditionals.html">Conditionals</a></li>
+				</ul>
+			</nav>
+			<h2>Overview</h2>
+			<p>asmscript (aka asms) is a JIT-compiled programming language made in 48h for the third langjam hosted at <a href="https://github.com/langjam/jam0003">langjam/jam0003</a> on GitHub. The theme was <em>Beautiful Assembly</em>.</p>
+			<p>This is a low-level language, which attempts to make x86_64 assembly look more structured and easier to read. The scope of this language is very limited because of the time constraints, but it is capable of doing some basic computations.</p>
+			<p>The source for this project is hosted on <a href="https://github.com/iszn11/asmscript">GitHub</a>.</p>
+			<h2>Features</h2>
+			<ul>
+				<li>Support for 15 general purpose registers (all except rsp), only in 64-bit form.</li>
+				<li>Operations on 64-bit signed integers: addition, subtraction, multiplication, division, modulo, bitwise and, or, xor.</li>
+				<li>Support for 64-bit signed integer literals, even when x86_64 instruction don't accept 64-bit immediate values directly.</li>
+				<li>Branches resembling if/else statements from higher level languages.</li>
+				<li>Loops resembling while loops from higher level languages.</li>
+				<li>Control flow statements: continue, break and return.</li>
+				<li>Bare-bones procedure support (leaves calling convention up to you).</li>
+				<li>Indirect stack control through push and pop statements.</li>
+				<li>Print formatted numbers and string constants to stdout.</li>
+			</ul>
+			<h2>Examples</h2>
+			<p>Print integers from 1 to 100.</p>
+<pre><span class="comm">// A procedure named "main", which is the entry point</span>
+<span class="kw">proc</span> <span class="fn">main</span> {
+    <span class="reg">rax</span> = <span class="num">1</span>;
+
+    <span class="kw">loop</span> (<span class="reg">rax</span> &lt;= <span class="num">100</span>) {
+        &lt;&lt; <span class="reg">rax</span>;   <span class="comm">// Print value in rax to stdout</span>
+        &lt;&lt; <span class="str">"\n"</span>;  <span class="comm">// Print newline to stdout</span>
+        <span class="reg">rax</span> += <span class="num">1</span>;
+    }
+}</pre>
+			<p>Print prime numbers between 2 and 100.</p>
+<pre><span class="comm">// This procedure will print the rax register if it contains a prime</span>
+<span class="kw">proc</span> <span class="fn">prime_test</span> {
+    <span class="reg">rbx</span> = <span class="num">2</span>; <span class="comm">// Our divisor</span>
+    <span class="kw">loop</span> { <span class="comm">// Loop without a condition is an infinite loop</span>
+        <span class="comm">// We only need to test divisors in range [2, sqrt(rax)]</span>
+        <span class="comm">// Loop until rbx * rbx &lt;= rax</span>
+        <span class="reg">r8</span> = <span class="reg">rbx</span>;
+        <span class="reg">r8</span> *= <span class="reg">rbx</span>;
+        <span class="kw">break</span> <span class="kw">if</span> <span class="reg">r8</span> > <span class="reg">rax</span>; <span class="comm">// Is prime, break and print the value</span>
+
+        <span class="reg">rdx</span> = <span class="reg">rax</span>;
+        <span class="reg">rdx</span> %= <span class="reg">rbx</span>;
+        <span class="kw">return</span> <span class="kw">if</span> <span class="reg">rdx</span> == <span class="num">0</span>; <span class="comm">// Not prime, return without printing</span>
+
+        <span class="reg">rbx</span> += <span class="num">1</span>;
+    }
+
+    &lt;&lt; <span class="reg">rax</span>;
+    &lt;&lt; <span class="str">"\n"</span>;
+}
+
+<span class="kw">proc</span> <span class="fn">main</span> {
+    <span class="reg">rax</span> = <span class="num">2</span>;
+    <span class="kw">loop</span> (<span class="reg">rax</span> &lt;= <span class="num">100</span>) {
+        <span class="fn">prime_test</span>; <span class="comm">// Call the "prime_test" procedure</span>
+        <span class="reg">rax</span> += <span class="num">1</span>;
+    }
+}</pre>
+		</main>
 	</body>
 </html>

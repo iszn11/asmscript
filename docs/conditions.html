@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en-US">
+	<head>
+		<meta charset="utf-8">
+		<title>asmscript (asms) documentation</title>
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<main>
+			<h1><a href="index.html">asmscript</a></h1>
+			<nav>
+				<ul>
+					<li><a href="index.html">Overview</a></li>
+					<li><a href="operands.html">Operands</a></li>
+					<li><a href="procedures.html">Procedures</a></li>
+					<li><a href="statements.html">Statements</a></li>
+					<li><a href="conditions.html">Conditions</a></li>
+					<li><a href="conditionals.html">Conditionals</a></li>
+				</ul>
+			</nav>
+			<h2>Conditions</h2>
+			<p>Conditions are used in branch and looop statements and inside <a href="conditionals.html">conditionals</a>. Conditions take the form:</p>
+<pre>SOURCE COMPARISON SOURCE</pre>
+			<p>Where <em>COMPARISON</em> is one of the following comparison operators:</p>
+			<ul>
+				<li>&lt;</li>
+				<li>&lt;=</li>
+				<li>&gt;</li>
+				<li>&gt;=</li>
+				<li>==</li>
+				<li>!=</li>
+			</ul>
+			<p>Examples:</p>
+<pre><span class="reg">rax</span> == <span class="num">0</span>
+<span class="reg">rbx</span> &lt;= <span class="reg">rcx</span>
+-<span class="num">10</span> > <span class="reg">r8</span></pre>
+			<p>The compiler doesn't support conditions which have immediates on both sides (but why would you want that, anyway?).</p>
+		</main>
+	</body>
+</html>

@@ -20,7 +20,7 @@
 			</nav>
 			<h2>Operands</h2>
 			<p>asmscript supports two types of operands: registers and immediates (aka literals).</p>
-			<h2>Registers</h2>
+			<h2 id="registers">Registers</h2>
 			<p>You can freely use 15 general purpose registers by refering to their names:</p>
 			<ul>
 				<li>rax</li>
@@ -39,9 +39,9 @@
 				<li>r14</li>
 				<li>r15</li>
 			</ul>
-			<p>Note that rsp (the stack pointer) is not available. However, you have access to push and pop statements, which do interact with rsp. All registers are assumed to hold a 64-bit signed integer. There is no support for any other registers nor for more narrow versions (e.g. eax, ax, al) of general purpose registers.</p>
+			<p>Note that rsp (the stack pointer) is not available. However, you have access to <a href="statements.html#push-pop">push and pop</a> statements, which do interact with rsp. All registers are assumed to hold a 64-bit signed integer. There is no support for any other registers nor for more narrow versions (e.g. eax, ax, al) of general purpose registers.</p>
 			<h2>Immediates</h2>
-			<p>You can a 64-bit signed integer literal as an operand. Only decimal literals are supported.</p>
+			<p>You can use a 64-bit signed integer literal as an operand. Only decimal literals are supported.</p>
 			<h2>Destination and source operands</h2>
 			<p>Statements can make use of two types of operands: destination operands and source operands. Source operands are read-only, while destination operands can be written to.</p>
 			<p>You can only use a register as a destination operand.</p>

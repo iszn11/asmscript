@@ -38,7 +38,7 @@
 <span class="reg">DEST</span> |= SOURCE;
 <span class="reg">DEST</span> ^= SOURCE;</pre>
 			<p>These statements perform (from top to bottom): addition, subtraction, multiplication, division, modulo, bitwise and, bitwise or, bitwise xor. Numbers are assumed to be 64-bit signed integers.</p>
-			<h2>Branch</h2>
+			<h2 id="branch">Branch</h2>
 			<p>Branch takes a <a href="conditions.html">condition</a>, a block of statements and an optional else block.</p>
 <pre><span class="kw">branch</span> (CONDITION) {
      STATEMENTS
@@ -50,7 +50,7 @@
     STATEMENTS
 }</pre>
 			<p>Note that braces are mandatory. Branch by its nature contains a condition, so it cannot be combined with a <a href="conditionals.html">conditional</a>.</p>
-			<h2>Loop</h2>
+			<h2 id="loop">Loop</h2>
 			<p>Loop takes an optional <a href="conditions.html">condition</a> and a block of statements. Loop without a condition is an infinite loop.</p>
 <pre><span class="kw">loop</span> {
      STATEMENTS
@@ -60,20 +60,20 @@
     STATEMENTS
 }</pre>
 			<p>Note that braces are mandatory. Loop by its nature contains a condition, so it cannot be combined with a <a href="conditionals.html">conditional</a>.</p>
-			<h2>Push and pop</h2>
+			<h2 id="push-pop">Push and pop</h2>
 			<p>You can push and pop registers on the stack. Note that this instruction supports only registers.</p>
 <pre><span class="kw">push</span> <span class="reg">REGISTER</span>;
 <span class="kw">pop</span> <span class="reg">REGISTER</span>;</pre>
-			<h2>Continue, break and return</h2>
+			<h2 id="continue-break-return">Continue, break and return</h2>
 			<p>You can use continue and break from inside a loop and return from anywhere inside a procedure. There are no labeled breaks or continues.</p>
 <pre><span class="kw">continue</span>;
 <span class="kw">break</span>;
 <span class="kw">return</span>;</pre>
 			<p>Note that return never takes any operands. You return values by setting registers appropriately according to your own calling convention.</p>
-			<h2>Call</h2>
+			<h2 id="call">Call</h2>
 			<p>You call a procedure by just stating its name followed by a semicolon.<p>
 <pre><span class="fn">NAME</span>;</pre>
-			<h2>stdout</h2>
+			<h2 id="stdout">stdout</h2>
 			<p>You can output operands and constant strings to stdout through a special statement.</p>
 <pre>&lt;&lt; SOURCE;
 &lt;&lt; STRING;</pre>

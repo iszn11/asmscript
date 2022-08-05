@@ -1,3 +1,4 @@
 /.ccls-cache
 /.vscode
-/asms
+/bin
+/obj
